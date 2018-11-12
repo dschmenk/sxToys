@@ -1,2 +1,2 @@
-# AstroImager
+# AstroImg
 Astronomy Camera Imaging Application
