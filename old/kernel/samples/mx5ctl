@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+
+open (CCD, "+</dev/ccdA") or die "Can't open CCD: $!";
+
+if ($ARGV[0] =~ /delay/i) {
+   $cmd = 1;
+} elsif ($ARGV[0] =~ /unload/i) {
+   $cmd = 65534;
+}
+print CCD "<CONTROL COMMAND=$cmd PARAMETER=$ARGV[1]/>";
+
+close CCD;
+

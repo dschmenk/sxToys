@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+open (CCD, "+</dev/ccdA") or die "Can't open CCD: $!";
+
+if ($ARGV[0] =~ /black/i) {
+   $cmd = 1;
+} elsif ($ARGV[0] =~ /white/i) {
+   $cmd = 2;
+} elsif ($ARGV[0] =~ /hue/i) {
+   $cmd = 3;
+} elsif ($ARGV[0] =~ /saturation/i) {
+   $cmd = 4;
+} elsif ($ARGV[0] =~ /contrast/i) {
+   $cmd = 5;
+} elsif ($ARGV[0] =~ /offset/i) {
+   $cmd = 6;
+}
+print CCD "<CONTROL COMMAND=$cmd PARAMETER=$ARGV[1]/>";
+
+close CCD;
+
