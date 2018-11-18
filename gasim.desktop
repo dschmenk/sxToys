@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Astro Imager
+Name[es]=Astro Imager
+Name[fi]=Astro Imager
+Name[no]=Astro Imager
+Name[sv]=Astro Imager
+Comment=Astronomy Camera Imager
+Comment[es]=
+Comment[fi]=
+Comment[sv]=
+Comment[no]=
+Exec=gasim
+Icon=gasim-logo.png
+Terminal=0
+Type=Application
