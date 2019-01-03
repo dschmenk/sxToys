@@ -5,6 +5,9 @@ OBJS = main.o
 
 all: $(PROG)
 
+clean:
+	rm -f $(PROG) *.o
+
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(GTKLIBS) -o $(PROG)
 
