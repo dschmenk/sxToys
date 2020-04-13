@@ -1,4 +1,4 @@
 # AstroImg
-Astronomy Image Capture and Viewer Application
+Astronomy Image Capture Applications for Startlight Xpress (https://www.sxccd.com) cameras.
 
-Based on GCCD for Gnome 1.x
+Using wxWidgets for cross-platform support. Use more, but smaller, applications for specific purposes.
