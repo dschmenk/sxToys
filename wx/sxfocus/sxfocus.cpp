@@ -41,10 +41,10 @@
 #define MIN_CONTRAST    0
 #define MAX_CONTRAST    4
 #define INC_BRIGHTNESS  1024
-#define MIN_BRIGHTNESS  0
+#define MIN_BRIGHTNESS  (INC_BRIGHTNESS*-16)
 #define MAX_BRIGHTNESS  (INC_BRIGHTNESS*16)
 #define INC_EXPOSURE    100
-#define MIN_EXPOSURE    0
+#define MIN_EXPOSURE    INC_EXPOSURE
 #define MAX_EXPOSURE    (INC_EXPOSURE*50)
 
 int ccdModel = SXCCD_MX5;
@@ -225,7 +225,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     focusFilter     = false;
     focusZoom       = -2;
     focusContrast   = MIN_CONTRAST;
-    focusBrightness = MIN_BRIGHTNESS;
+    focusBrightness = 0;
     focusExposure   = MIN_EXPOSURE;
     focusWinWidth   = ccdFrameWidth;
     focusWinHeight  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
@@ -278,7 +278,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     uint16_t      *m16    = ccdFrame;
     uint16_t       minPix = 0xFFFF;
     uint16_t       maxPix = 0;
-    uint32_t       clampPix;
+    long           clampPix;
     int x, y;
     if (focusFilter)
         for (y = 0; y < zoomHeight; y++)
@@ -286,8 +286,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
             {
                 if (*m16 < minPix) minPix = *m16;
                 if (*m16 > maxPix) maxPix = *m16;
-                clampPix = (((uint32_t)*m16) << focusContrast) + focusBrightness;
+                clampPix = (((long)*m16) << focusContrast) + focusBrightness;
                 if (clampPix > 0xFFFF) clampPix = 0xFFFF;
+                if (clampPix < 0)      clampPix = 0;
                 rgb[0] = clampPix >> 8;
                 rgb[1] = rgb[2] = 0;
                 rgb += 3;
@@ -299,8 +300,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
             {
                 if (*m16 < minPix) minPix = *m16;
                 if (*m16 > maxPix) maxPix = *m16;
-                clampPix = (((uint32_t)*m16) << focusContrast) + focusBrightness;
+                clampPix = (((long)*m16) << focusContrast) + focusBrightness;
                 if (clampPix > 0xFFFF) clampPix = 0xFFFF;
+                if (clampPix < 0)      clampPix = 0;
                 rgb[0] = rgb[1] = rgb[2] = clampPix >> 8;
                 rgb += 3;
                 m16++;
@@ -376,7 +378,7 @@ void FocusFrame::OnBrightnessDec(wxCommandEvent& event)
 }
 void FocusFrame::OnBrightnessReset(wxCommandEvent& event)
 {
-    focusBrightness = MIN_BRIGHTNESS;
+    focusBrightness = 0;
 }
 void FocusFrame::OnExposureInc(wxCommandEvent& event)
 {
