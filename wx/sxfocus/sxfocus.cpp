@@ -36,8 +36,16 @@
 #endif
 #include <wx/cmdline.h>
 #include "sxfocus.h"
-#define MIN_ZOOM    -4
-#define MAX_ZOOM     4
+#define MIN_ZOOM        -4
+#define MAX_ZOOM        4
+#define MIN_CONTRAST    0
+#define MAX_CONTRAST    4
+#define INC_BRIGHTNESS  1024
+#define MIN_BRIGHTNESS  0
+#define MAX_BRIGHTNESS  (INC_BRIGHTNESS*16)
+#define INC_EXPOSURE    100
+#define MIN_EXPOSURE    0
+#define MAX_EXPOSURE    (INC_EXPOSURE*50)
 
 int ccdModel = SXCCD_MX5;
 class FocusApp : public wxApp
@@ -57,12 +65,21 @@ private:
     uint16_t    *ccdFrame;
     int          focusWinWidth, focusWinHeight;
     bool         focusFilter;
-    int          focusZoom;
+    int          focusZoom, focusContrast, focusBrightness, focusExposure;
     wxTimer      focusTimer;
     void OnTimer(wxTimerEvent& event);
     void OnFilter(wxCommandEvent& event);
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
+    void OnContrastInc(wxCommandEvent& event);
+    void OnContrastDec(wxCommandEvent& event);
+    void OnContrastReset(wxCommandEvent& event);
+    void OnBrightnessInc(wxCommandEvent& event);
+    void OnBrightnessDec(wxCommandEvent& event);
+    void OnBrightnessReset(wxCommandEvent& event);
+    void OnExposureInc(wxCommandEvent& event);
+    void OnExposureDec(wxCommandEvent& event);
+    void OnExposureReset(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     wxDECLARE_EVENT_TABLE();
@@ -72,15 +89,33 @@ enum
     ID_TIMER = 1,
     ID_FILTER,
     ID_ZOOM_IN,
-    ID_ZOOM_OUT
+    ID_ZOOM_OUT,
+    ID_CONT_INC,
+    ID_CONT_DEC,
+    ID_CONT_RST,
+    ID_BRITE_INC,
+    ID_BRITE_DEC,
+    ID_BRITE_RST,
+    ID_EXPOSE_INC,
+    ID_EXPOSE_DEC,
+    ID_EXPOSE_RST,
 };
 wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
-    EVT_TIMER(ID_TIMER,   FocusFrame::OnTimer)
-    EVT_MENU(ID_FILTER,   FocusFrame::OnFilter)
-    EVT_MENU(ID_ZOOM_IN,  FocusFrame::OnZoomIn)
-    EVT_MENU(ID_ZOOM_OUT, FocusFrame::OnZoomOut)
-    EVT_MENU(wxID_ABOUT,  FocusFrame::OnAbout)
-    EVT_MENU(wxID_EXIT,   FocusFrame::OnExit)
+    EVT_TIMER(ID_TIMER,     FocusFrame::OnTimer)
+    EVT_MENU(ID_FILTER,     FocusFrame::OnFilter)
+    EVT_MENU(ID_ZOOM_IN,    FocusFrame::OnZoomIn)
+    EVT_MENU(ID_ZOOM_OUT,   FocusFrame::OnZoomOut)
+    EVT_MENU(ID_CONT_INC,   FocusFrame::OnContrastInc)
+    EVT_MENU(ID_CONT_DEC,   FocusFrame::OnContrastDec)
+    EVT_MENU(ID_CONT_RST,   FocusFrame::OnContrastReset)
+    EVT_MENU(ID_BRITE_INC,  FocusFrame::OnBrightnessInc)
+    EVT_MENU(ID_BRITE_DEC,  FocusFrame::OnBrightnessDec)
+    EVT_MENU(ID_BRITE_RST,  FocusFrame::OnBrightnessReset)
+    EVT_MENU(ID_EXPOSE_INC, FocusFrame::OnExposureInc)
+    EVT_MENU(ID_EXPOSE_DEC, FocusFrame::OnExposureDec)
+    EVT_MENU(ID_EXPOSE_RST, FocusFrame::OnExposureReset)
+    EVT_MENU(wxID_ABOUT,    FocusFrame::OnAbout)
+    EVT_MENU(wxID_EXIT,     FocusFrame::OnExit)
 wxEND_EVENT_TABLE()
 
 wxIMPLEMENT_APP(FocusApp);
@@ -146,9 +181,18 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
 {
     char statusText[40];
     wxMenu *menuFocus = new wxMenu;
-    menuFocus->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
-    menuFocus->Append(ID_ZOOM_IN,  wxT("&Zoom\t="));
-    menuFocus->Append(ID_ZOOM_OUT, wxT("&Bin\t-"));
+    menuFocus->AppendCheckItem(ID_FILTER, wxT("Red Filter\tR"));
+    menuFocus->Append(ID_ZOOM_IN,    wxT("Zoom In\t="));
+    menuFocus->Append(ID_ZOOM_OUT,   wxT("Zoom Out\t-"));
+    menuFocus->Append(ID_CONT_INC,   wxT("Contrast Inc\t]"));
+    menuFocus->Append(ID_CONT_DEC,   wxT("Contrast Dec\t["));
+    menuFocus->Append(ID_CONT_RST,   wxT("Contrast Reset\t\\"));
+    menuFocus->Append(ID_BRITE_INC,  wxT("Brightness Inc\t}"));
+    menuFocus->Append(ID_BRITE_DEC,  wxT("Brightness Dec\t{"));
+    menuFocus->Append(ID_BRITE_RST,  wxT("Brightness Reset\t|"));
+    menuFocus->Append(ID_EXPOSE_INC, wxT("Exposure Inc\t."));
+    menuFocus->Append(ID_EXPOSE_DEC, wxT("Exposure Dec\t,"));
+    menuFocus->Append(ID_EXPOSE_RST, wxT("Exposure Reset\t/"));
     menuFocus->AppendSeparator();
     menuFocus->Append(wxID_EXIT);
     wxMenu *menuHelp = new wxMenu;
@@ -165,7 +209,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
         ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         ccdDoubleHeight = (ccdModel & SXCCD_INTERLEAVE) ? 2 : 1;
-        focusTimer.StartOnce(100);
+        focusTimer.StartOnce(INC_EXPOSURE);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
     else
@@ -178,11 +222,14 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         ccdFrame        = NULL;
         strcpy(statusText, "Attached: None");
     }
-    focusFilter    = false;
-    focusZoom      = -2;
-    focusWinWidth  = ccdFrameWidth;//  / 4;
-    focusWinHeight = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth;// / 4; // Keep aspect ratio
-    while (focusWinHeight > 720)
+    focusFilter     = false;
+    focusZoom       = -2;
+    focusContrast   = MIN_CONTRAST;
+    focusBrightness = MIN_BRIGHTNESS;
+    focusExposure   = MIN_EXPOSURE;
+    focusWinWidth   = ccdFrameWidth;
+    focusWinHeight  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
+    while (focusWinHeight > 720) // Constrain initial size to something reasonable
     {
         focusWinWidth  <<= 1;
         focusWinHeight <<= 1;
@@ -231,6 +278,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     uint16_t      *m16    = ccdFrame;
     uint16_t       minPix = 0xFFFF;
     uint16_t       maxPix = 0;
+    uint32_t       clampPix;
     int x, y;
     if (focusFilter)
         for (y = 0; y < zoomHeight; y++)
@@ -238,7 +286,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
             {
                 if (*m16 < minPix) minPix = *m16;
                 if (*m16 > maxPix) maxPix = *m16;
-                rgb[0] = (*m16 >> 8);
+                clampPix = (((uint32_t)*m16) << focusContrast) + focusBrightness;
+                if (clampPix > 0xFFFF) clampPix = 0xFFFF;
+                rgb[0] = clampPix >> 8;
                 rgb[1] = rgb[2] = 0;
                 rgb += 3;
                 m16++;
@@ -249,7 +299,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
             {
                 if (*m16 < minPix) minPix = *m16;
                 if (*m16 > maxPix) maxPix = *m16;
-                rgb[0] = rgb[1] = rgb[2] = (*m16 >> 8);
+                clampPix = (((uint32_t)*m16) << focusContrast) + focusBrightness;
+                if (clampPix > 0xFFFF) clampPix = 0xFFFF;
+                rgb[0] = rgb[1] = rgb[2] = clampPix >> 8;
                 rgb += 3;
                 m16++;
             }
@@ -268,8 +320,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     /*
      * Prep next frame
      */
-    //sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-    focusTimer.StartOnce(100);
+    if (focusExposure < 1000)
+        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)
 {
@@ -300,6 +353,42 @@ void FocusFrame::OnZoomOut(wxCommandEvent& event)
     else
         sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
     SetStatusText(statusText, 1);
+}
+void FocusFrame::OnContrastInc(wxCommandEvent& event)
+{
+    if (focusContrast < MAX_CONTRAST) focusContrast++;
+}
+void FocusFrame::OnContrastDec(wxCommandEvent& event)
+{
+    if (focusContrast > MIN_CONTRAST) focusContrast--;
+}
+void FocusFrame::OnContrastReset(wxCommandEvent& event)
+{
+    focusContrast = MIN_CONTRAST;
+}
+void FocusFrame::OnBrightnessInc(wxCommandEvent& event)
+{
+    if (focusBrightness < MAX_BRIGHTNESS) focusBrightness += INC_BRIGHTNESS;
+}
+void FocusFrame::OnBrightnessDec(wxCommandEvent& event)
+{
+    if (focusBrightness > MIN_BRIGHTNESS) focusBrightness -= INC_BRIGHTNESS;
+}
+void FocusFrame::OnBrightnessReset(wxCommandEvent& event)
+{
+    focusBrightness = MIN_BRIGHTNESS;
+}
+void FocusFrame::OnExposureInc(wxCommandEvent& event)
+{
+    if (focusExposure < MAX_EXPOSURE) focusExposure += INC_EXPOSURE;
+}
+void FocusFrame::OnExposureDec(wxCommandEvent& event)
+{
+    if (focusExposure > MIN_EXPOSURE) focusExposure -= INC_EXPOSURE;
+}
+void FocusFrame::OnExposureReset(wxCommandEvent& event)
+{
+    focusExposure = MIN_EXPOSURE;
 }
 void FocusFrame::OnExit(wxCommandEvent& event)
 {
