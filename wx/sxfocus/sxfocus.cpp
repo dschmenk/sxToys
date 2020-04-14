@@ -60,10 +60,9 @@ class FocusFrame : public wxFrame
 public:
     FocusFrame();
 private:
-    unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth, ccdDoubleHeight;
+    unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
-    int          focusWinWidth, focusWinHeight;
     bool         focusFilter;
     int          focusZoom, focusContrast, focusBrightness, focusExposure;
     wxTimer      focusTimer;
@@ -117,7 +116,6 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(wxID_ABOUT,    FocusFrame::OnAbout)
     EVT_MENU(wxID_EXIT,     FocusFrame::OnExit)
 wxEND_EVENT_TABLE()
-
 wxIMPLEMENT_APP(FocusApp);
 void FocusApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
@@ -180,6 +178,7 @@ bool FocusApp::OnInit()
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
     char statusText[40];
+    int focusWinWidth, focusWinHeight;
     wxMenu *menuFocus = new wxMenu;
     menuFocus->AppendCheckItem(ID_FILTER, wxT("Red Filter\tR"));
     menuFocus->Append(ID_ZOOM_IN,    wxT("Zoom In\t="));
@@ -208,7 +207,6 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
         sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
         ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
-        ccdDoubleHeight = (ccdModel & SXCCD_INTERLEAVE) ? 2 : 1;
         focusTimer.StartOnce(INC_EXPOSURE);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
@@ -218,7 +216,6 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         ccdFrameWidth   = ccdFrameHeight = 512;
         ccdFrameDepth   = 16;
         ccdPixelWidth   = ccdPixelHeight = 1;
-        ccdDoubleHeight = 1;
         ccdFrame        = NULL;
         strcpy(statusText, "Attached: None");
     }
@@ -242,6 +239,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
 void FocusFrame::OnTimer(wxTimerEvent& event)
 {
     int zoomWidth, zoomHeight;
+    int focusWinWidth, focusWinHeight;
     if (focusZoom < 1)
     {
         zoomWidth  = ccdFrameWidth  >> -focusZoom;
@@ -288,7 +286,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
                 if (*m16 > maxPix) maxPix = *m16;
                 clampPix = (((long)*m16) << focusContrast) + focusBrightness;
                 if (clampPix > 0xFFFF) clampPix = 0xFFFF;
-                if (clampPix < 0)      clampPix = 0;
+                else if (clampPix < 0)      clampPix = 0;
                 rgb[0] = clampPix >> 8;
                 rgb[1] = rgb[2] = 0;
                 rgb += 3;
@@ -302,7 +300,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
                 if (*m16 > maxPix) maxPix = *m16;
                 clampPix = (((long)*m16) << focusContrast) + focusBrightness;
                 if (clampPix > 0xFFFF) clampPix = 0xFFFF;
-                if (clampPix < 0)      clampPix = 0;
+                else if (clampPix < 0)      clampPix = 0;
                 rgb[0] = rgb[1] = rgb[2] = clampPix >> 8;
                 rgb += 3;
                 m16++;
@@ -338,9 +336,9 @@ void FocusFrame::OnZoomIn(wxCommandEvent& event)
     if (focusZoom > MAX_ZOOM)
         focusZoom = MAX_ZOOM;
     if (focusZoom < 1)
-    sprintf(statusText, "Bin: %dX%d", 1 << -focusZoom, 1 << -focusZoom);
-else
-    sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
+        sprintf(statusText, "Bin: %dX%d", 1 << -focusZoom, 1 << -focusZoom);
+    else
+        sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
     SetStatusText(statusText, 1);
 }
 void FocusFrame::OnZoomOut(wxCommandEvent& event)
@@ -398,5 +396,5 @@ void FocusFrame::OnExit(wxCommandEvent& event)
 }
 void FocusFrame::OnAbout(wxCommandEvent& event)
 {
-    wxMessageBox("Startlight Xpress Focussing App\nCopyright (c) 2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Focussing App\nCopyright (c) 2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
 }
