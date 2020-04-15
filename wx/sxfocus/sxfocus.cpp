@@ -284,7 +284,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
             {
                 if (*m16 < minPix) minPix = *m16;
                 if (*m16 > maxPix) maxPix = *m16;
-                clampPix = (((long)*m16) << focusContrast) + focusBrightness;
+                clampPix = (long)(*m16 + focusBrightness) << focusContrast;
                 if (clampPix > 0xFFFF) clampPix = 0xFFFF;
                 else if (clampPix < 0)      clampPix = 0;
                 rgb[0] = clampPix >> 8;
@@ -298,7 +298,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
             {
                 if (*m16 < minPix) minPix = *m16;
                 if (*m16 > maxPix) maxPix = *m16;
-                clampPix = (((long)*m16) << focusContrast) + focusBrightness;
+                clampPix = (long)(*m16 + focusBrightness) << focusContrast;
                 if (clampPix > 0xFFFF) clampPix = 0xFFFF;
                 else if (clampPix < 0)      clampPix = 0;
                 rgb[0] = rgb[1] = rgb[2] = clampPix >> 8;
