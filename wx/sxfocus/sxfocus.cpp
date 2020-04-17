@@ -43,11 +43,31 @@
 #define INC_BRIGHTNESS  1024
 #define MIN_BRIGHTNESS  (INC_BRIGHTNESS*-16)
 #define MAX_BRIGHTNESS  (INC_BRIGHTNESS*16)
+#define INC_GAMMA       0.4
+#define MIN_GAMMA       1.0
+#define MAX_GAMMA       4.0
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    INC_EXPOSURE
 #define MAX_EXPOSURE    (INC_EXPOSURE*50)
 
 int ccdModel = SXCCD_MX5;
+uint8_t redLUT[65536];
+uint8_t blugrnLUT[65536];
+static void calcRamp(int brightness, int contrast, float gamma, bool filter)
+{
+    int pix;
+    long pixClamp;
+
+    for (pix = 0; pix < 65536; pix++)
+    {
+        pixClamp = (long)(pix + brightness) << contrast;
+        if (pixClamp > 0xFFFF) pixClamp = 0xFF;
+        else if (pixClamp < 0) pixClamp = 0;
+        else pixClamp  = 255.0 * pow(pixClamp/65535.0, 1.0/gamma);//log10(pow((pixClamp/65535.0), 1.0/gamma)*9.0 + 1.0);
+        redLUT[pix]    = pixClamp;
+        blugrnLUT[pix] = filter ? 0 : pixClamp;
+    }
+}
 class FocusApp : public wxApp
 {
 public:
@@ -65,6 +85,7 @@ private:
     uint16_t    *ccdFrame;
     bool         focusFilter;
     int          focusZoom, focusContrast, focusBrightness, focusExposure;
+    float        focusGamma;
     wxTimer      focusTimer;
     void OnTimer(wxTimerEvent& event);
     void OnFilter(wxCommandEvent& event);
@@ -76,6 +97,9 @@ private:
     void OnBrightnessInc(wxCommandEvent& event);
     void OnBrightnessDec(wxCommandEvent& event);
     void OnBrightnessReset(wxCommandEvent& event);
+    void OnGammaInc(wxCommandEvent& event);
+    void OnGammaDec(wxCommandEvent& event);
+    void OnGammaReset(wxCommandEvent& event);
     void OnExposureInc(wxCommandEvent& event);
     void OnExposureDec(wxCommandEvent& event);
     void OnExposureReset(wxCommandEvent& event);
@@ -95,6 +119,9 @@ enum
     ID_BRITE_INC,
     ID_BRITE_DEC,
     ID_BRITE_RST,
+    ID_GAMMA_INC,
+    ID_GAMMA_DEC,
+    ID_GAMMA_RST,
     ID_EXPOSE_INC,
     ID_EXPOSE_DEC,
     ID_EXPOSE_RST,
@@ -110,6 +137,9 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_BRITE_INC,  FocusFrame::OnBrightnessInc)
     EVT_MENU(ID_BRITE_DEC,  FocusFrame::OnBrightnessDec)
     EVT_MENU(ID_BRITE_RST,  FocusFrame::OnBrightnessReset)
+    EVT_MENU(ID_GAMMA_INC,  FocusFrame::OnGammaInc)
+    EVT_MENU(ID_GAMMA_DEC,  FocusFrame::OnGammaDec)
+    EVT_MENU(ID_GAMMA_RST,  FocusFrame::OnGammaReset)
     EVT_MENU(ID_EXPOSE_INC, FocusFrame::OnExposureInc)
     EVT_MENU(ID_EXPOSE_DEC, FocusFrame::OnExposureDec)
     EVT_MENU(ID_EXPOSE_RST, FocusFrame::OnExposureReset)
@@ -189,6 +219,9 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuFocus->Append(ID_BRITE_INC,  wxT("Brightness Inc\t}"));
     menuFocus->Append(ID_BRITE_DEC,  wxT("Brightness Dec\t{"));
     menuFocus->Append(ID_BRITE_RST,  wxT("Brightness Reset\t|"));
+    menuFocus->Append(ID_GAMMA_INC,  wxT("Gamma Inc\t>"));
+    menuFocus->Append(ID_GAMMA_DEC,  wxT("Gamma Dec\t<"));
+    menuFocus->Append(ID_GAMMA_RST,  wxT("Gamma Reset\t?"));
     menuFocus->Append(ID_EXPOSE_INC, wxT("Exposure Inc\t."));
     menuFocus->Append(ID_EXPOSE_DEC, wxT("Exposure Dec\t,"));
     menuFocus->Append(ID_EXPOSE_RST, wxT("Exposure Reset\t/"));
@@ -219,11 +252,6 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         ccdFrame        = NULL;
         strcpy(statusText, "Attached: None");
     }
-    focusFilter     = false;
-    focusZoom       = -2;
-    focusContrast   = MIN_CONTRAST;
-    focusBrightness = 0;
-    focusExposure   = MIN_EXPOSURE;
     focusWinWidth   = ccdFrameWidth;
     focusWinHeight  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
     while (focusWinHeight > 720) // Constrain initial size to something reasonable
@@ -231,6 +259,13 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         focusWinWidth  <<= 1;
         focusWinHeight <<= 1;
     }
+    focusZoom       = -2;
+    focusExposure   = MIN_EXPOSURE;
+    focusBrightness = 0;
+    focusContrast   = MIN_CONTRAST;
+    focusGamma      = MIN_GAMMA;
+    focusFilter     = false;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
     CreateStatusBar(4);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: 2x2", 1);
@@ -276,35 +311,18 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     uint16_t      *m16    = ccdFrame;
     uint16_t       minPix = 0xFFFF;
     uint16_t       maxPix = 0;
-    long           clampPix;
     int x, y;
-    if (focusFilter)
-        for (y = 0; y < zoomHeight; y++)
-            for (x = 0; x < zoomWidth; x++)
-            {
-                if (*m16 < minPix) minPix = *m16;
-                if (*m16 > maxPix) maxPix = *m16;
-                clampPix = (long)(*m16 + focusBrightness) << focusContrast;
-                if (clampPix > 0xFFFF) clampPix = 0xFFFF;
-                else if (clampPix < 0)      clampPix = 0;
-                rgb[0] = clampPix >> 8;
-                rgb[1] = rgb[2] = 0;
-                rgb += 3;
-                m16++;
-            }
-    else
-        for (y = 0; y < zoomHeight; y++)
-            for (x = 0; x < zoomWidth; x++)
-            {
-                if (*m16 < minPix) minPix = *m16;
-                if (*m16 > maxPix) maxPix = *m16;
-                clampPix = (long)(*m16 + focusBrightness) << focusContrast;
-                if (clampPix > 0xFFFF) clampPix = 0xFFFF;
-                else if (clampPix < 0)      clampPix = 0;
-                rgb[0] = rgb[1] = rgb[2] = clampPix >> 8;
-                rgb += 3;
-                m16++;
-            }
+    for (y = 0; y < zoomHeight; y++)
+        for (x = 0; x < zoomWidth; x++)
+        {
+            if (*m16 < minPix) minPix = *m16;
+            if (*m16 > maxPix) maxPix = *m16;
+            rgb[0] = redLUT[*m16];
+            rgb[1] =
+            rgb[2] = blugrnLUT[*m16];
+            rgb   += 3;
+            m16++;
+        }
     GetClientSize(&focusWinWidth, &focusWinHeight);
     if (focusWinWidth > 0 && focusWinHeight > 0)
     {
@@ -327,6 +345,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
 void FocusFrame::OnFilter(wxCommandEvent& event)
 {
     focusFilter = event.IsChecked();
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnZoomIn(wxCommandEvent& event)
 {
@@ -357,26 +376,47 @@ void FocusFrame::OnZoomOut(wxCommandEvent& event)
 void FocusFrame::OnContrastInc(wxCommandEvent& event)
 {
     if (focusContrast < MAX_CONTRAST) focusContrast++;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnContrastDec(wxCommandEvent& event)
 {
     if (focusContrast > MIN_CONTRAST) focusContrast--;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnContrastReset(wxCommandEvent& event)
 {
     focusContrast = MIN_CONTRAST;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnBrightnessInc(wxCommandEvent& event)
 {
     if (focusBrightness < MAX_BRIGHTNESS) focusBrightness += INC_BRIGHTNESS;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnBrightnessDec(wxCommandEvent& event)
 {
     if (focusBrightness > MIN_BRIGHTNESS) focusBrightness -= INC_BRIGHTNESS;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnBrightnessReset(wxCommandEvent& event)
 {
     focusBrightness = 0;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
+}
+void FocusFrame::OnGammaInc(wxCommandEvent& event)
+{
+    if (focusGamma < MAX_GAMMA) focusGamma += INC_GAMMA;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
+}
+void FocusFrame::OnGammaDec(wxCommandEvent& event)
+{
+    if (focusGamma > MIN_GAMMA) focusGamma -= INC_GAMMA;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
+}
+void FocusFrame::OnGammaReset(wxCommandEvent& event)
+{
+    focusGamma = MIN_GAMMA;
+    calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnExposureInc(wxCommandEvent& event)
 {
