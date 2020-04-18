@@ -44,7 +44,7 @@
 #define MIN_BRIGHTNESS  (INC_BRIGHTNESS*-16)
 #define MAX_BRIGHTNESS  (INC_BRIGHTNESS*16)
 #define INC_GAMMA       0.4
-#define MIN_GAMMA       0.2
+#define MIN_GAMMA       0.6
 #define MAX_GAMMA       4.0
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    INC_EXPOSURE
