@@ -49,21 +49,22 @@
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    INC_EXPOSURE
 #define MAX_EXPOSURE    (INC_EXPOSURE*50)
-
+#define LUT_BITWIDTH    10
+#define LUT_SIZE        (1<<LUT_BITWIDTH)
 int ccdModel = SXCCD_MX5;
-uint8_t redLUT[65536];
-uint8_t blugrnLUT[65536];
+uint8_t redLUT[LUT_SIZE];
+uint8_t blugrnLUT[LUT_SIZE];
 static void calcRamp(int brightness, int contrast, float gamma, bool filter)
 {
     int pix;
     long pixClamp;
 
-    for (pix = 0; pix < 65536; pix++)
+    for (pix = 0; pix < LUT_SIZE; pix++)
     {
-        pixClamp = (long)(pix + brightness) << contrast;
-        if (pixClamp > 0xFFFF) pixClamp = 0xFF;
+        pixClamp = (long)((pix << (16-LUT_BITWIDTH)) + brightness) << contrast;
+        if (pixClamp > 0xFFFF) pixClamp = 0xFFFF;
         else if (pixClamp < 0) pixClamp = 0;
-        else pixClamp  = 255.0 * pow(pixClamp/65535.0, 1.0/gamma);//log10(pow((pixClamp/65535.0), 1.0/gamma)*9.0 + 1.0);
+        pixClamp       = 255.0 * pow((float)(pixClamp>>(16-LUT_BITWIDTH))/(LUT_SIZE-1), 1.0/gamma);//log10(pow((pixClamp/65535.0), 1.0/gamma)*9.0 + 1.0);
         redLUT[pix]    = pixClamp;
         blugrnLUT[pix] = filter ? 0 : pixClamp;
     }
@@ -317,9 +318,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
         {
             if (*m16 < minPix) minPix = *m16;
             if (*m16 > maxPix) maxPix = *m16;
-            rgb[0] = redLUT[*m16];
+            rgb[0] = redLUT[*m16>>(16-LUT_BITWIDTH)];
             rgb[1] =
-            rgb[2] = blugrnLUT[*m16];
+            rgb[2] = blugrnLUT[*m16>>(16-LUT_BITWIDTH)];
             rgb   += 3;
             m16++;
         }
