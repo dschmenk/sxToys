@@ -44,7 +44,7 @@
 #define MIN_BRIGHTNESS  (INC_BRIGHTNESS*-16)
 #define MAX_BRIGHTNESS  (INC_BRIGHTNESS*16)
 #define INC_GAMMA       0.4
-#define MIN_GAMMA       1.0
+#define MIN_GAMMA       0.2
 #define MAX_GAMMA       4.0
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    INC_EXPOSURE
@@ -263,7 +263,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     focusExposure   = MIN_EXPOSURE;
     focusBrightness = 0;
     focusContrast   = MIN_CONTRAST;
-    focusGamma      = MIN_GAMMA;
+    focusGamma      = 1.0;
     focusFilter     = false;
     calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
     CreateStatusBar(4);
@@ -415,7 +415,7 @@ void FocusFrame::OnGammaDec(wxCommandEvent& event)
 }
 void FocusFrame::OnGammaReset(wxCommandEvent& event)
 {
-    focusGamma = MIN_GAMMA;
+    focusGamma = 1.0;
     calcRamp(focusBrightness, focusContrast, focusGamma, focusFilter);
 }
 void FocusFrame::OnExposureInc(wxCommandEvent& event)
