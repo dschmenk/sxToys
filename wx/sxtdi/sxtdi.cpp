@@ -36,6 +36,10 @@
 #endif
 #include <wx/cmdline.h>
 #include "sxtdi.h"
+#define MAX_WHITE       65535
+#define INC_BLACK       1024
+#define MIN_BLACK       0
+#define MAX_BLACK       32768
 #define PIX_BITWIDTH    16
 #define MIN_PIX         0
 #define MAX_PIX         ((1<<PIX_BITWIDTH)-1)
@@ -46,19 +50,20 @@
 int ccdModel = SXCCD_MX5;
 uint8_t redLUT[LUT_SIZE];
 uint8_t blugrnLUT[LUT_SIZE];
-static void calcRamp(unit16_t black, unit16_t white, float gamma, bool filter)
+static void calcRamp(int black, int white, float gamma, bool filter)
 {
     int pix, offset;
-    float scale, pixClamp;
+    float scale, recipg, pixClamp;
 
     offset = LUT_INDEX(black);
     scale  = (float)(white - black)/MAX_PIX;
+    recipg = 1.0/gamma;
     for (pix = 0; pix < LUT_SIZE; pix++)
     {
-        pixClamp = ((float)pix/(LUT_SIZE-1) - offset) * scale;
+        pixClamp = ((float)(pix - offset)/(LUT_SIZE-1)) * scale;
         if (pixClamp > 1.0) pixClamp = 1.0;
         else if (pixClamp < 0.0) pixClamp = 0.0;
-        redLUT[pix]    = 255.0 * pow(pixClamp, 1.0/gamma);//log10(pow((pixClamp/65535.0), 1.0/gamma)*9.0 + 1.0);
+        redLUT[pix]    = 255.0 * pow(pixClamp, recipg);
         blugrnLUT[pix] = filter ? 0 : redLUT[pix];
     }
 }
@@ -77,8 +82,9 @@ private:
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
-    unsigned int pixelMax, pixelMin;
-    float        pixelOffset, pixelScale, pixelGamma;
+    int          pixelMax, pixelMin;
+    int          pixelBlack, pixelWhite;
+    float        pixelGamma;
     bool         pixelFilter;
     int          tdiWinWidth, tdiWinHeight, tdiZoom;
     int          tdiExposure;
@@ -90,6 +96,7 @@ private:
     void OnFilter(wxCommandEvent& event);
     void OnAlign(wxCommandEvent& event);
     void OnScan(wxCommandEvent& event);
+    void OnStop(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     wxDECLARE_EVENT_TABLE();
 };
@@ -99,10 +106,14 @@ enum
     ID_FILTER,
     ID_ALIGN,
     ID_SCAN,
+    ID_STOP,
 };
 wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_TIMER(ID_TIMER,     ScanFrame::OnTimer)
     EVT_MENU(ID_FILTER,     ScanFrame::OnFilter)
+    EVT_MENU(ID_ALIGN,      ScanFrame::OnAlign)
+    EVT_MENU(ID_SCAN,       ScanFrame::OnScan)
+    EVT_MENU(ID_STOP,       ScanFrame::OnStop)
     EVT_MENU(wxID_NEW,      ScanFrame::OnNew)
     EVT_MENU(wxID_SAVE,     ScanFrame::OnSave)
     EVT_MENU(wxID_ABOUT,    ScanFrame::OnAbout)
@@ -179,6 +190,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
     menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
     menuScan->Append(ID_ALIGN, "&Align\tA");
     menuScan->Append(ID_SCAN, "&TDI Scan\tT");
+    menuScan->Append(ID_STOP, "S&top\tCtrl-T");
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
@@ -187,6 +199,13 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
     tdiExposure = 100; // 0.1 sec
+    pixelMin    = MAX_WHITE;
+    pixelMax    = MIN_BLACK;
+    pixelBlack  = MIN_BLACK;
+    pixelWhite  = MAX_WHITE;
+    pixelGamma  = 1.0;
+    pixelFilter = false;
+    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
     if (sxOpen(ccdModel))
     {
         ccdModel = sxGetModel(0);
@@ -214,13 +233,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
         tdiWinHeight <<= 1;
         tdiZoom++;
     }
-    pixelOffset     = 0.0;
-    pixelScale      = 1.0;
-    pixelGamma      = 1.0;
-    pixelMin        = 0;
-    pixelMax        = 0xFFFF;
-    pixelFilter     = false;
-    calcRamp(pixelOffset, pixelScale, pixelGamma, pixelFilter);
     CreateStatusBar(2);
     SetStatusText(statusText, 0);
     SetStatusText("Rate: 0.1 row/s", 1);

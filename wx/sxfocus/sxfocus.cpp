@@ -245,6 +245,14 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuFocus, wxT("&Focus"));
     menuBar->Append(menuHelp, wxT("&Help"));
     SetMenuBar(menuBar);
+    focusExposure = MIN_EXPOSURE;
+    pixelMin      = MAX_WHITE;
+    pixelMax      = MIN_BLACK;
+    pixelBlack    = MIN_BLACK;
+    pixelWhite    = MAX_WHITE;
+    pixelGamma    = 1.0;
+    pixelFilter   = false;
+    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
     if (sxOpen(ccdModel))
     {
         ccdModel = sxGetModel(0);
@@ -252,7 +260,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
         sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
         ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
-        focusTimer.StartOnce(INC_EXPOSURE);
+        focusTimer.StartOnce(focusExposure);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
     else
@@ -272,14 +280,6 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         focusWinHeight <<= 1;
     }
     focusZoom       = -2;
-    focusExposure   = MIN_EXPOSURE;
-    pixelBlack      = MIN_BLACK;
-    pixelWhite      = MAX_WHITE;
-    pixelGamma      = 1.0;
-    pixelMin        = 0;
-    pixelMax        = 0xFFFF;
-    pixelFilter     = false;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
     CreateStatusBar(4);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: 2x2", 1);
