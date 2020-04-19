@@ -36,8 +36,32 @@
 #endif
 #include <wx/cmdline.h>
 #include "sxtdi.h"
+#define PIX_BITWIDTH    16
+#define MIN_PIX         0
+#define MAX_PIX         ((1<<PIX_BITWIDTH)-1)
+#define LUT_BITWIDTH    10
+#define LUT_SIZE        (1<<LUT_BITWIDTH)
+#define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
 
 int ccdModel = SXCCD_MX5;
+uint8_t redLUT[LUT_SIZE];
+uint8_t blugrnLUT[LUT_SIZE];
+static void calcRamp(unit16_t black, unit16_t white, float gamma, bool filter)
+{
+    int pix, offset;
+    float scale, pixClamp;
+
+    offset = LUT_INDEX(black);
+    scale  = (float)(white - black)/MAX_PIX;
+    for (pix = 0; pix < LUT_SIZE; pix++)
+    {
+        pixClamp = ((float)pix/(LUT_SIZE-1) - offset) * scale;
+        if (pixClamp > 1.0) pixClamp = 1.0;
+        else if (pixClamp < 0.0) pixClamp = 0.0;
+        redLUT[pix]    = 255.0 * pow(pixClamp, 1.0/gamma);//log10(pow((pixClamp/65535.0), 1.0/gamma)*9.0 + 1.0);
+        blugrnLUT[pix] = filter ? 0 : redLUT[pix];
+    }
+}
 class ScanApp : public wxApp
 {
 public:
@@ -53,13 +77,19 @@ private:
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
-    bool         tdiFilter;
+    unsigned int pixelMax, pixelMin;
+    float        pixelOffset, pixelScale, pixelGamma;
+    bool         pixelFilter;
+    int          tdiWinWidth, tdiWinHeight, tdiZoom;
+    int          tdiExposure;
     wxTimer      tdiTimer;
     void OnTimer(wxTimerEvent& event);
     void OnNew(wxCommandEvent& event);
     void OnSave(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
+    void OnAlign(wxCommandEvent& event);
+    void OnScan(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     wxDECLARE_EVENT_TABLE();
 };
@@ -67,6 +97,8 @@ enum
 {
     ID_TIMER = 1,
     ID_FILTER,
+    ID_ALIGN,
+    ID_SCAN,
 };
 wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_TIMER(ID_TIMER,     ScanFrame::OnTimer)
@@ -144,7 +176,9 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
     menuFile->AppendSeparator();
     menuFile->Append(wxID_EXIT);
     wxMenu *menuScan = new wxMenu;
-    menuScan->AppendCheckItem(ID_FILTER, wxT("Red Filter\tR"));
+    menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
+    menuScan->Append(ID_ALIGN, "&Align\tA");
+    menuScan->Append(ID_SCAN, "&TDI Scan\tT");
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
@@ -152,23 +186,56 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
     menuBar->Append(menuScan, "&Scan");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
-    CreateStatusBar();
+    tdiExposure = 100; // 0.1 sec
     if (sxOpen(ccdModel))
-        sprintf(statusText, "%cX-%d Camera Attached", sxGetModel(0) & 0x40 ? 'M' : 'H', sxGetModel(0) & 0x3F);
+    {
+        ccdModel = sxGetModel(0);
+        sxGetFrameDimensions(0, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
+        sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
+        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
+    }
     else
-        strcpy(statusText, "No camera attached");
-    SetStatusText(statusText);
+    {
+        ccdModel        = 0;
+        ccdFrameWidth   = ccdFrameHeight = 512;
+        ccdFrameDepth   = 16;
+        ccdPixelWidth   = ccdPixelHeight = 1;
+        ccdFrame        = NULL;
+        strcpy(statusText, "Attached: None");
+    }
+    tdiWinHeight  = ccdFrameWidth; // Swap width/height
+    tdiWinHeight  = ccdFrameHeight;
+    tdiZoom       = 1;
+    while (tdiWinHeight > 720) // Constrain initial size to something reasonable
+    {
+        tdiWinWidth  <<= 1;
+        tdiWinHeight <<= 1;
+        tdiZoom++;
+    }
+    pixelOffset     = 0.0;
+    pixelScale      = 1.0;
+    pixelGamma      = 1.0;
+    pixelMin        = 0;
+    pixelMax        = 0xFFFF;
+    pixelFilter     = false;
+    calcRamp(pixelOffset, pixelScale, pixelGamma, pixelFilter);
+    CreateStatusBar(2);
+    SetStatusText(statusText, 0);
+    SetStatusText("Rate: 0.1 row/s", 1);
+    SetClientSize(tdiWinWidth, tdiWinHeight);
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
 {
 }
 void ScanFrame::OnNew(wxCommandEvent& event)
 {
-    wxLogMessage("Hello world from wxWidgets!");
+    wxLogMessage("New scan");
 }
 void ScanFrame::OnSave(wxCommandEvent& event)
 {
-    wxLogMessage("Hello world from wxWidgets!");
+    wxLogMessage("Save Scan");
 }
 void ScanFrame::OnExit(wxCommandEvent& event)
 {
@@ -176,7 +243,19 @@ void ScanFrame::OnExit(wxCommandEvent& event)
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
-    tdiFilter = event.IsChecked();
+    pixelFilter = event.IsChecked();
+}
+void ScanFrame::OnAlign(wxCommandEvent& event)
+{
+    tdiTimer.Start(tdiExposure);
+}
+void ScanFrame::OnScan(wxCommandEvent& event)
+{
+    tdiTimer.Start(tdiExposure);
+}
+void ScanFrame::OnStop(wxCommandEvent& event)
+{
+    tdiTimer.Stop();
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
