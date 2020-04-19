@@ -38,13 +38,13 @@
 #include "sxfocus.h"
 #define MIN_ZOOM        -4
 #define MAX_ZOOM        4
-#define MAX_WHITE       65535
-#define INC_BLACK       1024
+#define MAX_WHITE       0xFFFF
 #define MIN_BLACK       0
-#define MAX_BLACK       32768
-#define INC_GAMMA       0.4
+#define MAX_BLACK       (MAX_WHITE/2)
+#define INC_BLACK       (MAX_BLACK/16)
 #define MIN_GAMMA       0.6
 #define MAX_GAMMA       4.0
+#define INC_GAMMA       0.4
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    INC_EXPOSURE
 #define MAX_EXPOSURE    (INC_EXPOSURE*50)
@@ -63,7 +63,7 @@ static void calcRamp(int black, int white, float gamma, bool filter)
     float scale, recipg, pixClamp;
 
     offset = LUT_INDEX(black);
-    scale  = (float)(white - black)/MAX_PIX;
+    scale  = (float)MAX_PIX/(white - black);
     recipg = 1.0/gamma;
     for (pix = 0; pix < LUT_SIZE; pix++)
     {
