@@ -49,8 +49,12 @@
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    INC_EXPOSURE
 #define MAX_EXPOSURE    (INC_EXPOSURE*50)
+#define PIX_BITWIDTH    16
+#define MIN_PIX         0
+#define MAX_PIX         ((1<<PIX_BITWIDTH)-1)
 #define LUT_BITWIDTH    10
 #define LUT_SIZE        (1<<LUT_BITWIDTH)
+#define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
 int ccdModel = SXCCD_MX5;
 uint8_t redLUT[LUT_SIZE];
 uint8_t blugrnLUT[LUT_SIZE];
@@ -84,6 +88,7 @@ private:
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
     int          focusZoom, focusExposure;
+    unsigned int pixelMax, pixelMin;
     float        pixelOffset, pixelScale, pixelGamma;
     bool         pixelFilter;
     wxTimer      focusTimer;
@@ -97,6 +102,7 @@ private:
     void OnBrightnessInc(wxCommandEvent& event);
     void OnBrightnessDec(wxCommandEvent& event);
     void OnBrightnessReset(wxCommandEvent& event);
+    void OnAutoLevels(wxCommandEvent& event);
     void OnGammaInc(wxCommandEvent& event);
     void OnGammaDec(wxCommandEvent& event);
     void OnGammaReset(wxCommandEvent& event);
@@ -119,6 +125,7 @@ enum
     ID_BRITE_INC,
     ID_BRITE_DEC,
     ID_BRITE_RST,
+    ID_LEVEL_AUTO,
     ID_GAMMA_INC,
     ID_GAMMA_DEC,
     ID_GAMMA_RST,
@@ -137,6 +144,7 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_BRITE_INC,  FocusFrame::OnBrightnessInc)
     EVT_MENU(ID_BRITE_DEC,  FocusFrame::OnBrightnessDec)
     EVT_MENU(ID_BRITE_RST,  FocusFrame::OnBrightnessReset)
+    EVT_MENU(ID_LEVEL_AUTO, FocusFrame::OnAutoLevels)
     EVT_MENU(ID_GAMMA_INC,  FocusFrame::OnGammaInc)
     EVT_MENU(ID_GAMMA_DEC,  FocusFrame::OnGammaDec)
     EVT_MENU(ID_GAMMA_RST,  FocusFrame::OnGammaReset)
@@ -219,6 +227,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuFocus->Append(ID_BRITE_INC,  wxT("Brightness Inc\t}"));
     menuFocus->Append(ID_BRITE_DEC,  wxT("Brightness Dec\t{"));
     menuFocus->Append(ID_BRITE_RST,  wxT("Brightness Reset\t|"));
+    menuFocus->Append(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
     menuFocus->Append(ID_GAMMA_INC,  wxT("Gamma Inc\t>"));
     menuFocus->Append(ID_GAMMA_DEC,  wxT("Gamma Dec\t<"));
     menuFocus->Append(ID_GAMMA_RST,  wxT("Gamma Reset\t?"));
@@ -264,6 +273,8 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     pixelOffset     = MIN_OFFSET;
     pixelScale      = MIN_SCALE;
     pixelGamma      = 1.0;
+    pixelMin        = 0;
+    pixelMax        = 0xFFFF;
     pixelFilter     = false;
     calcRamp(pixelOffset, pixelScale, pixelGamma, pixelFilter);
     CreateStatusBar(4);
@@ -309,17 +320,17 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     wxImage ccdImage(zoomWidth, zoomHeight);
     unsigned char *rgb    = ccdImage.GetData();
     uint16_t      *m16    = ccdFrame;
-    uint16_t       minPix = 0xFFFF;
-    uint16_t       maxPix = 0;
     int x, y;
+    pixelMin = MAX_PIX;
+    pixelMax = MIN_PIX;
     for (y = 0; y < zoomHeight; y++)
         for (x = 0; x < zoomWidth; x++)
         {
-            if (*m16 < minPix) minPix = *m16;
-            if (*m16 > maxPix) maxPix = *m16;
-            rgb[0] = redLUT[*m16>>(16-LUT_BITWIDTH)];
+            if (*m16 < pixelMin) pixelMin = *m16;
+            if (*m16 > pixelMax) pixelMax = *m16;
+            rgb[0] = redLUT[LUT_INDEX(*m16)];
             rgb[1] =
-            rgb[2] = blugrnLUT[*m16>>(16-LUT_BITWIDTH)];
+            rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
             rgb   += 3;
             m16++;
         }
@@ -331,9 +342,9 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
         dc.DrawBitmap(bitmap, 0, 0);
     }
     char minmax[20];
-    sprintf(minmax, "Min: %d", minPix);
+    sprintf(minmax, "Min: %d", pixelMin);
     SetStatusText(minmax, 2);
-    sprintf(minmax, "Max: %d", maxPix);
+    sprintf(minmax, "Max: %d", pixelMax);
     SetStatusText(minmax, 3);
     /*
      * Prep next frame
@@ -401,6 +412,12 @@ void FocusFrame::OnBrightnessDec(wxCommandEvent& event)
 void FocusFrame::OnBrightnessReset(wxCommandEvent& event)
 {
     pixelOffset = MIN_OFFSET;
+    calcRamp(pixelOffset, pixelScale, pixelGamma, pixelFilter);
+}
+void FocusFrame::OnAutoLevels(wxCommandEvent& event)
+{
+    pixelOffset = (float)(pixelMin + 1) / (float)MAX_PIX;
+    pixelScale  = (float)MAX_PIX / (float)(pixelMax - pixelMin + 2);
     calcRamp(pixelOffset, pixelScale, pixelGamma, pixelFilter);
 }
 void FocusFrame::OnGammaInc(wxCommandEvent& event)
