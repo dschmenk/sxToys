@@ -36,7 +36,7 @@
 #endif
 #include <wx/cmdline.h>
 #include "sxtdi.h"
-#define ALIGN_EXP       1000
+#define ALIGN_EXP       2000
 #define MAX_WHITE       65535
 #define INC_BLACK       1024
 #define MIN_BLACK       0
@@ -201,8 +201,8 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
     tdiExposure = 100; // 0.1 sec
-    pixelMin    = MAX_WHITE;
-    pixelMax    = MIN_BLACK;
+    pixelMin    = MAX_BLACK;
+    pixelMax    = MAX_WHITE;
     pixelBlack  = MIN_BLACK;
     pixelWhite  = MAX_WHITE;
     pixelGamma  = 1.0;
@@ -299,7 +299,17 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
     {
         sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
         tdiTimer.Start(ALIGN_EXP);
-        alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth, true);
+        alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
+        memset(alignImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
+        for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
+        {
+            unsigned char *rgb = alignImage->GetData() + y * ccdFrameHeight * 3;
+            for (int x = 0; x < ccdFrameHeight; x++)
+            {
+                rgb[1] = 128;
+                rgb   += 3;
+            }
+        }
     }
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
@@ -310,13 +320,9 @@ void ScanFrame::OnStop(wxCommandEvent& event)
 {
     if (tdiTimer.IsRunning())
     {
-        printf("Stopping timer\n");
         tdiTimer.Stop();
         delete alignImage;
     }
-    else
-        printf("Timer not running\n");
-
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
