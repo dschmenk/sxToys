@@ -36,6 +36,7 @@
 #endif
 #include <wx/cmdline.h>
 #include "sxtdi.h"
+#define ALIGN_EXP       1000
 #define MAX_WHITE       65535
 #define INC_BLACK       1024
 #define MIN_BLACK       0
@@ -179,7 +180,7 @@ bool ScanApp::OnInit()
     }
     return false;
 }
-ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
+ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TIMER)
 {
     char statusText[40];
     wxMenu *menuFile = new wxMenu;
@@ -240,7 +241,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
 {
-    printf("Update alignment frame.\n");
     sxReadPixels(0, // cam idx
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  0, // xoffset
@@ -295,10 +295,12 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
-    sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-    tdiTimer.Start(100);
-    alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth, true);
-    printf("Start alignment\n");
+    if (ccdModel)
+    {
+        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        tdiTimer.Start(ALIGN_EXP);
+        alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth, true);
+    }
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
