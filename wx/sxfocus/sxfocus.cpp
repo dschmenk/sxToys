@@ -279,7 +279,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         focusWinWidth  <<= 1;
         focusWinHeight <<= 1;
     }
-    focusZoom       = -2;
+    focusZoom       = -1;
     CreateStatusBar(4);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: 2x2", 1);
