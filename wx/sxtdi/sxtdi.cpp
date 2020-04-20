@@ -224,9 +224,9 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
         ccdFrame        = NULL;
         strcpy(statusText, "Attached: None");
     }
-    tdiWinHeight  = ccdFrameWidth; // Swap width/height
-    tdiWinHeight  = ccdFrameHeight;
-    tdiZoom       = 1;
+    tdiWinHeight = ccdFrameWidth; // Swap width/height
+    tdiWinWidth  = ccdFrameHeight;
+    tdiZoom      = 1;
     while (tdiWinHeight > 720) // Constrain initial size to something reasonable
     {
         tdiWinWidth  <<= 1;
@@ -240,6 +240,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
 {
+    printf("Update alignment frame.\n");
     sxReadPixels(0, // cam idx
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  0, // xoffset
@@ -295,8 +296,9 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
     sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-    tdiTimer.Start(1000);
+    tdiTimer.Start(100);
     alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth, true);
+    printf("Start alignment\n");
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
@@ -304,8 +306,15 @@ void ScanFrame::OnScan(wxCommandEvent& event)
 }
 void ScanFrame::OnStop(wxCommandEvent& event)
 {
-    tdiTimer.Stop();
-    delete alignImage;
+    if (tdiTimer.IsRunning())
+    {
+        printf("Stopping timer\n");
+        tdiTimer.Stop();
+        delete alignImage;
+    }
+    else
+        printf("Timer not running\n");
+
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
