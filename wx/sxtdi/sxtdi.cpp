@@ -46,7 +46,7 @@
 #define LUT_BITWIDTH    10
 #define LUT_SIZE        (1<<LUT_BITWIDTH)
 #define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
-
+#define max(a,b)        ((a)>=(b)?(a):(b))
 int ccdModel = SXCCD_MX5;
 uint8_t redLUT[LUT_SIZE];
 uint8_t blugrnLUT[LUT_SIZE];
@@ -56,7 +56,7 @@ static void calcRamp(int black, int white, float gamma, bool filter)
     float scale, recipg, pixClamp;
 
     offset = LUT_INDEX(black);
-    scale  = (float)(white - black)/MAX_PIX;
+    scale  = (float)MAX_PIX/(white - black);
     recipg = 1.0/gamma;
     for (pix = 0; pix < LUT_SIZE; pix++)
     {
@@ -88,6 +88,7 @@ private:
     bool         pixelFilter;
     int          tdiWinWidth, tdiWinHeight, tdiZoom;
     int          tdiExposure;
+    wxImage     *alignImage;
     wxTimer      tdiTimer;
     void OnTimer(wxTimerEvent& event);
     void OnNew(wxCommandEvent& event);
@@ -211,7 +212,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
         ccdModel = sxGetModel(0);
         sxGetFrameDimensions(0, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
         sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
-        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
         ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
@@ -240,6 +240,41 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI")
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
 {
+    sxReadPixels(0, // cam idx
+                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                 0, // xoffset
+                 0, // yoffset
+                 ccdFrameWidth, // width
+                 ccdFrameHeight, // height
+                 1, // xbin
+                 1, // ybin
+                 (unsigned char *)ccdFrame); //pixbuf
+    calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
+    pixelMin = MAX_PIX;
+    pixelMax = MIN_PIX;
+    unsigned char *rgb    = alignImage->GetData();
+    uint16_t      *m16;
+    for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+    {
+        m16 = &ccdFrame[ccdFrameWidth - y - 1];
+        for (int x = 0; x < ccdFrameHeight; x++)
+        {
+            if (*m16 < pixelMin) pixelMin = *m16;
+            if (*m16 > pixelMax) pixelMax = *m16;
+            rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
+            rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
+            rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
+            rgb   += 3;
+            m16   += ccdFrameWidth;
+        }
+    }
+    GetClientSize(&tdiWinWidth, &tdiWinHeight);
+    if (tdiWinWidth > 0 && tdiWinHeight > 0)
+    {
+        wxClientDC dc(this);
+        wxBitmap bitmap(alignImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
+        dc.DrawBitmap(bitmap, 0, 0);
+    }
 }
 void ScanFrame::OnNew(wxCommandEvent& event)
 {
@@ -259,7 +294,9 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
-    tdiTimer.Start(tdiExposure);
+    sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    tdiTimer.Start(1000);
+    alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth, true);
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
@@ -268,6 +305,7 @@ void ScanFrame::OnScan(wxCommandEvent& event)
 void ScanFrame::OnStop(wxCommandEvent& event)
 {
     tdiTimer.Stop();
+    delete alignImage;
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
