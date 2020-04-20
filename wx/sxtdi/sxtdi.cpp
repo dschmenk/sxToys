@@ -56,7 +56,7 @@ static void calcRamp(int black, int white, float gamma, bool filter)
     int pix, offset;
     float scale, recipg, pixClamp;
 
-    offset = LUT_INDEX(black);
+    offset = LUT_INDEX(black) - 1;
     scale  = (float)MAX_PIX/(white - black);
     recipg = 1.0/gamma;
     for (pix = 0; pix < LUT_SIZE; pix++)
