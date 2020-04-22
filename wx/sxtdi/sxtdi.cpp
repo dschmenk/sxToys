@@ -80,6 +80,7 @@ class ScanFrame : public wxFrame
 public:
     ScanFrame();
 private:
+    int          tdiState;
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
@@ -89,6 +90,9 @@ private:
     bool         pixelFilter;
     int          tdiWinWidth, tdiWinHeight, tdiZoom;
     int          tdiExposure;
+    float        tdiScanRate;
+    bool         isFirstAlignFrame;
+    float        trackStarInitialX, trackStarX, trackStarY;
     wxImage     *alignImage;
     wxTimer      tdiTimer;
     void OnTimer(wxTimerEvent& event);
@@ -110,6 +114,13 @@ enum
     ID_SCAN,
     ID_STOP,
 };
+enum
+{
+    STATE_IDLE = 0,
+    STATE_ALIGNING,
+    STATE_SCANNING,
+    STATE_STOPPING
+}
 wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_TIMER(ID_TIMER,     ScanFrame::OnTimer)
     EVT_MENU(ID_FILTER,     ScanFrame::OnFilter)
@@ -200,6 +211,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuScan, "&Scan");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
+    tdiState    = STATE_IDLE;
     tdiExposure = 100; // 0.1 sec
     pixelMin    = MAX_BLACK;
     pixelMax    = MAX_WHITE;
@@ -250,6 +262,20 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
                  1, // xbin
                  1, // ybin
                  (unsigned char *)ccdFrame); //pixbuf
+    if (isFirstAlignFrame)
+    {
+        //
+        // If first frame, identify best candidate for measuring scan rate
+        //
+        isFirstAlignFrame = false;
+    }
+    else
+    {
+        //
+        // Track star for rate measurement
+        //
+
+    }
     calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
@@ -295,21 +321,26 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
-    if (ccdModel)
+    if (tdiState == STATE_IDLE)
     {
-        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-        tdiTimer.Start(ALIGN_EXP);
-        alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
-        memset(alignImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
-        for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
+        if (ccdModel)
         {
-            unsigned char *rgb = alignImage->GetData() + y * ccdFrameHeight * 3;
-            for (int x = 0; x < ccdFrameHeight; x++)
+            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+            tdiTimer.Start(ALIGN_EXP);
+            alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
+            memset(alignImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
+            for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
             {
-                rgb[1] = 128;
-                rgb   += 3;
+                unsigned char *rgb = alignImage->GetData() + y * ccdFrameHeight * 3;
+                for (int x = 0; x < ccdFrameHeight; x++)
+                {
+                    rgb[1] = 128;
+                    rgb   += 3;
+                }
             }
         }
+        tdiState          = STATE_ALIGNING;
+        isFirstAlignFrame = true;
     }
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
