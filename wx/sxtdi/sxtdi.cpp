@@ -369,6 +369,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
 {
+    static int numFrames;
     int xRadius, yRadius;
 
     sxReadPixels(0, // cam idx
@@ -387,16 +388,22 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         //
         trackStarInitialX = ccdFrameWidth/2;
         trackStarInitialY = 0.0;
-        isFirstAlignFrame = findBestCentroid(ccdFrameWidth, ccdFrameHeight/2, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight, &xRadius, &yRadius, 2.0);
+        xRadius = yRadius = 5;
+        isFirstAlignFrame = findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight/2, &xRadius, &yRadius, 2.0);
         trackStarX = trackStarInitialX;
         trackStarY = trackStarInitialY;
+        numFrames  = 1;
     }
     else
     {
         //
         // Track star for rate measurement
         //
-
+        xRadius = yRadius = 5;
+        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 2.0))
+        {
+            tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP * numFrames++);
+        }
     }
     calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
     pixelMin = MAX_PIX;
