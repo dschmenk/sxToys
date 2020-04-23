@@ -115,10 +115,16 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
     y_radius    = 0;
     pixel_ave   = 0.0;
     pixel_sig   = 0.0;
-    if (x_min < 0)             x_min = 0;
+    /*
+    if (x_min < 0)      x_min = 0;
     if (x_max > width)  x_max = width;
-    if (y_min < 0)             y_min = 0;
+    if (y_min < 0)      y_min = 0;
     if (y_max > height) y_max = height;
+    */
+    if (x_min < *x_max_radius)        x_min = *x_max_radius;
+    if (x_max > width-*x_max_radius)  x_max = width-*x_max_radius;
+    if (y_min < *y_max_radius)        y_min = *y_max_radius;
+    if (y_max > height-*y_max_radius) y_max = height-*y_max_radius;
 
     for (j = y_min; j < y_max; j++)
         for (i = x_min; i < x_max; i++)
@@ -168,8 +174,8 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                         {
                             pixel_max = pixel;
                             calcCentroid(width, height, pixels, i, j, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
-                            x = (int)*x_centroid;
-                            y = (int)*y_centroid;
+                            x = (int)(*x_centroid + 0.5);
+                            y = (int)(*y_centroid + 0.5);
                             calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                         }
                     }
@@ -182,6 +188,7 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
         *x_max_radius = x_radius;
         *y_max_radius = y_radius;
     }
+    printf("Best star @ %d, %d\n", x, y);
     return (x >= 0 || y >= 0);
 }
 class ScanApp : public wxApp
@@ -356,6 +363,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     tdiWinHeight = ccdFrameWidth; // Swap width/height
     tdiWinWidth  = ccdFrameHeight;
     tdiZoom      = 1;
+    tdiScanRate  = 0.0;
     while (tdiWinHeight > 720) // Constrain initial size to something reasonable
     {
         tdiWinWidth  <<= 1;
@@ -364,13 +372,14 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     }
     CreateStatusBar(2);
     SetStatusText(statusText, 0);
-    SetStatusText("Rate: 0.1 row/s", 1);
+    SetStatusText("Rate: 0.00 row/s", 1);
     SetClientSize(tdiWinWidth, tdiWinHeight);
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
 {
     static int numFrames;
     int xRadius, yRadius;
+    char statusText[40];
 
     sxReadPixels(0, // cam idx
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
@@ -388,8 +397,8 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         //
         trackStarInitialX = ccdFrameWidth/2;
         trackStarInitialY = 0.0;
-        xRadius = yRadius = 5;
-        isFirstAlignFrame = findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight/2, &xRadius, &yRadius, 2.0);
+        xRadius = yRadius = 15;
+        isFirstAlignFrame = !findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight/2, &xRadius, &yRadius, 1.0);
         trackStarX = trackStarInitialX;
         trackStarY = trackStarInitialY;
         numFrames  = 1;
@@ -399,11 +408,12 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         //
         // Track star for rate measurement
         //
-        xRadius = yRadius = 5;
-        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 2.0))
+        xRadius = yRadius = 15;
+        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
             tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP * numFrames++);
         }
+        printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
     }
     calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
     pixelMin = MAX_PIX;
@@ -424,7 +434,7 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
             m16   += ccdFrameWidth;
         }
     }
-    if (!isFirstAlignFrame)
+//    if (!isFirstAlignFrame)
     {
         rgb = alignImage->GetData() + (ccdFrameWidth * (int)trackStarY + (int)trackStarX) * 3;
         rgb[0] = 0;
@@ -437,6 +447,8 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         wxClientDC dc(this);
         wxBitmap bitmap(alignImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
+        sprintf(statusText, "Rate: %1.2f row/s", tdiScanRate);
+        SetStatusText(statusText, 1);
     }
 }
 void ScanFrame::OnNew(wxCommandEvent& event)
@@ -489,6 +501,7 @@ void ScanFrame::OnStop(wxCommandEvent& event)
     {
         tdiTimer.Stop();
         delete alignImage;
+        tdiState = STATE_IDLE;
     }
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
