@@ -371,7 +371,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     }
     CreateStatusBar(2);
     SetStatusText(statusText, 0);
-    SetStatusText("Rate: 0.00 row/s", 1);
+    SetStatusText("Rate: 0.000 row/s", 1);
     SetClientSize(tdiWinWidth, tdiWinHeight);
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
@@ -415,6 +415,8 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
             printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
+            if (trackStarInitialY < trackStarY)
+                tdiExposure = (ALIGN_EXP * numFrames) / (trackStarY - trackStarInitialY);
             tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP/1000 * numFrames++);
         }
     }
@@ -450,7 +452,7 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         wxClientDC dc(this);
         wxBitmap bitmap(alignImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
-        sprintf(statusText, "Rate: %2.2f row/s", tdiScanRate);
+        sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
         SetStatusText(statusText, 1);
     }
 }
