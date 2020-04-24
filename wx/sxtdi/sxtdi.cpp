@@ -415,7 +415,7 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
             printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
-            tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP * numFrames++);
+            tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP/1000 * numFrames++);
         }
     }
     calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
@@ -450,7 +450,7 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         wxClientDC dc(this);
         wxBitmap bitmap(alignImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
-        sprintf(statusText, "Rate: %1.2f row/s", tdiScanRate);
+        sprintf(statusText, "Rate: %2.2f row/s", tdiScanRate);
         SetStatusText(statusText, 1);
     }
 }
