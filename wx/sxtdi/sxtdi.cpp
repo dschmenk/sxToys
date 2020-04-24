@@ -176,20 +176,19 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                             calcCentroid(width, height, pixels, i, j, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                             x = (int)(*x_centroid + 0.5);
                             y = (int)(*y_centroid + 0.5);
-                            calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                         }
                     }
                 }
             }
         }
     }
-    if  (x >= 0 || y >= 0)
+    if  (x >= 0 && y >= 0)
     {
         *x_max_radius = x_radius;
         *y_max_radius = y_radius;
     }
     printf("Best star @ %d, %d\n", x, y);
-    return (x >= 0 || y >= 0);
+    return x >= 0 && y >= 0;
 }
 class ScanApp : public wxApp
 {
@@ -398,10 +397,14 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         trackStarInitialX = ccdFrameWidth/2;
         trackStarInitialY = 0.0;
         xRadius = yRadius = 15;
-        isFirstAlignFrame = !findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight/2, &xRadius, &yRadius, 1.0);
-        trackStarX = trackStarInitialX;
-        trackStarY = trackStarInitialY;
-        numFrames  = 1;
+        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 1.0))
+        {
+            printf("Start tracking star at %f, %f\n", trackStarInitialX, trackStarInitialY);
+            isFirstAlignFrame = false;
+            trackStarX        = trackStarInitialX;
+            trackStarY        = trackStarInitialY;
+            numFrames         = 1;
+        }
     }
     else
     {
@@ -411,9 +414,9 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
         xRadius = yRadius = 15;
         if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
+            printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
             tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP * numFrames++);
         }
-        printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
     }
     calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
     pixelMin = MAX_PIX;
@@ -434,9 +437,9 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
             m16   += ccdFrameWidth;
         }
     }
-//    if (!isFirstAlignFrame)
+    if (!isFirstAlignFrame)
     {
-        rgb = alignImage->GetData() + (ccdFrameWidth * (int)trackStarY + (int)trackStarX) * 3;
+        rgb = alignImage->GetData() + (ccdFrameHeight * (ccdFrameWidth - 1 - (int)trackStarX) + (int)trackStarY) * 3;
         rgb[0] = 0;
         rgb[1] = 0;
         rgb[2] = 0xFF;
@@ -486,21 +489,30 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
                     rgb   += 3;
                 }
             }
+            tdiState          = STATE_ALIGNING;
+            isFirstAlignFrame = true;
         }
-        tdiState          = STATE_ALIGNING;
-        isFirstAlignFrame = true;
     }
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
-    tdiTimer.Start(tdiExposure);
+    if (tdiState == STATE_IDLE)
+    {
+        if (ccdModel)
+        {
+            tdiExposure = tdiScanRate;
+            tdiTimer.Start(tdiExposure);
+            tdiState = STATE_SCANNING;
+        }
+    }
 }
 void ScanFrame::OnStop(wxCommandEvent& event)
 {
     if (tdiTimer.IsRunning())
     {
         tdiTimer.Stop();
-        delete alignImage;
+        if (tdiState == STATE_ALIGNING)
+            delete alignImage;
         tdiState = STATE_IDLE;
     }
 }
