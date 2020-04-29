@@ -206,16 +206,18 @@ private:
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
+    uint16_t    *tdiFrame;
     int          pixelMax, pixelMin;
     int          pixelBlack, pixelWhite;
     float        pixelGamma;
     bool         pixelFilter;
     int          tdiWinWidth, tdiWinHeight, tdiZoom;
+    int          tdiLength, tdiRow;
     int          tdiExposure;
     float        tdiScanRate;
     bool         isFirstAlignFrame;
     float        trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
-    wxImage     *alignImage;
+    wxImage     *scanImage;
     wxTimer      tdiTimer;
     void OnTimer(wxTimerEvent& event);
     void OnNew(wxCommandEvent& event);
@@ -333,6 +335,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuScan, "&Scan");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
+    tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
     tdiExposure = 100; // 0.1 sec
     pixelMin    = MAX_BLACK;
@@ -347,7 +350,8 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         ccdModel = sxGetModel(0);
         sxGetFrameDimensions(0, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
         sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
-        ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
     else
@@ -357,6 +361,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         ccdFrameDepth   = 16;
         ccdPixelWidth   = ccdPixelHeight = 1;
         ccdFrame        = NULL;
+        scanImage       = NULL;
         strcpy(statusText, "Attached: None");
     }
     tdiWinHeight = ccdFrameWidth; // Swap width/height
@@ -374,7 +379,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     SetStatusText("Rate: 0.000 row/s", 1);
     SetClientSize(tdiWinWidth, tdiWinHeight);
 }
-void ScanFrame::OnTimer(wxTimerEvent& event)
+void scanAlign(void)
 {
     static int numFrames;
     int xRadius, yRadius;
@@ -420,53 +425,110 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
             tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP/1000 * numFrames++);
         }
     }
-    calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
-    pixelMin = MAX_PIX;
-    pixelMax = MIN_PIX;
-    unsigned char *rgb    = alignImage->GetData();
-    uint16_t      *m16;
-    for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
-    {
-        m16 = &ccdFrame[ccdFrameWidth - y - 1];
-        for (int x = 0; x < ccdFrameHeight; x++)
-        {
-            if (*m16 < pixelMin) pixelMin = *m16;
-            if (*m16 > pixelMax) pixelMax = *m16;
-            rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
-            rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
-            rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
-            rgb   += 3;
-            m16   += ccdFrameWidth;
-        }
-    }
-    if (!isFirstAlignFrame)
-    {
-        rgb = alignImage->GetData() + (ccdFrameHeight * (ccdFrameWidth - 1 - (int)trackStarX) + (int)trackStarY) * 3;
-        rgb[0] = 0;
-        rgb[1] = 0;
-        rgb[2] = 0xFF;
-    }
     GetClientSize(&tdiWinWidth, &tdiWinHeight);
     if (tdiWinWidth > 0 && tdiWinHeight > 0)
     {
+        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
+        pixelMin = MAX_PIX;
+        pixelMax = MIN_PIX;
+        unsigned char *rgb    = scanImage->GetData();
+        uint16_t      *m16;
+        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        {
+            m16 = &ccdFrame[ccdFrameWidth - y - 1];
+            for (int x = 0; x < ccdFrameHeight; x++)
+            {
+                if (*m16 < pixelMin) pixelMin = *m16;
+                if (*m16 > pixelMax) pixelMax = *m16;
+                rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
+                rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
+                rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
+                rgb   += 3;
+                m16   += ccdFrameWidth;
+            }
+        }
         wxClientDC dc(this);
-        wxBitmap bitmap(alignImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
+        wxBitmap bitmap(scanImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
         sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
         SetStatusText(statusText, 1);
     }
 }
+void scanTDI(void)
+{
+    uint16_t ccdRow = tdiFrame + tdiRow * ccdFrameWidth;
+    sxReadPixels(0, // cam idx
+                 SXCCD_EXP_FLAGS_TDI_SCAN |
+                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                 0, // xoffset
+                 0, // yoffset
+                 ccdFrameWidth, // width
+                 1, // height
+                 1, // xbin
+                 1, // ybin
+                 (unsigned char *)ccdRow); //pixbuf
+    //
+    GetClientSize(&tdiWinWidth, &tdiWinHeight);
+    if (tdiWinWidth > 0 && tdiWinHeight > 0)
+    {
+        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
+        pixelMin = MAX_PIX;
+        pixelMax = MIN_PIX;
+        unsigned char *rgb    = scanImage->GetData();
+        uint16_t      *m16;
+        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        {
+            m16 = &ccdRow[ccdFrameWidth - y - 1];
+            for (int x = 0; x < ccdFrameHeight; x++)
+            {
+                if (*m16 < pixelMin) pixelMin = *m16;
+                if (*m16 > pixelMax) pixelMax = *m16;
+                rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
+                rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
+                rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
+                rgb   += 3;
+                m16   += ccdFrameWidth;
+            }
+        }
+        wxClientDC dc(this);
+        wxBitmap bitmap(scanImage->Scale(tdiWinWidth, tdiWinHeight, wxIMAGE_QUALITY_BILINEAR));
+        dc.DrawBitmap(bitmap, 0, 0);
+    }
+    if (++tdiRow == tdiLenght)
+    {
+        tdiTimer.Stop();
+        tdiState = STATE_IDLE;
+    }
+}
+void ScanFrame::OnTimer(wxTimerEvent& event)
+{
+    if (tdiState == STATE_SCANNING)
+        scanTDI();
+    else
+        scanAlign();
+}
 void ScanFrame::OnNew(wxCommandEvent& event)
 {
-    wxLogMessage("New scan");
-}
+    if (tdiFrame)
+    {
+        //
+        // Overwrite existing scan?
+        //
+        free(tdiFrame);
+        tdiFrame = NULL;
+    }
 void ScanFrame::OnSave(wxCommandEvent& event)
 {
     wxLogMessage("Save Scan");
 }
 void ScanFrame::OnExit(wxCommandEvent& event)
 {
+    if (tdiState != STATE_IDLE)
+        ;
+    if (scanImage)
+        delete scanImage;
     Close(true);
+
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
@@ -480,11 +542,10 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         {
             sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.Start(ALIGN_EXP);
-            alignImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
-            memset(alignImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
+            memset(scanImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
             for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
             {
-                unsigned char *rgb = alignImage->GetData() + y * ccdFrameHeight * 3;
+                unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
                 for (int x = 0; x < ccdFrameHeight; x++)
                 {
                     rgb[1] = 128;
@@ -502,8 +563,19 @@ void ScanFrame::OnScan(wxCommandEvent& event)
     {
         if (ccdModel)
         {
-            tdiExposure = tdiScanRate;
+            if (tdiFrame)
+            {
+                //
+                // OVerwrite existing scan?
+                //
+                return;
+            }
+            tdiLength = tdiMinutes * 60000 / tdiExposure;
+            tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
+            memset(tdiFrame, sizeof(uint16_t) * tdiLength * ccdFrameWidth, 0);
+            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.Start(tdiExposure);
+            tdiRow   = 0;
             tdiState = STATE_SCANNING;
         }
     }
@@ -513,8 +585,6 @@ void ScanFrame::OnStop(wxCommandEvent& event)
     if (tdiTimer.IsRunning())
     {
         tdiTimer.Stop();
-        if (tdiState == STATE_ALIGNING)
-            delete alignImage;
         tdiState = STATE_IDLE;
     }
 }
