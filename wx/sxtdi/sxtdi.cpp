@@ -337,6 +337,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     SetMenuBar(menuBar);
     tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
+    tdiMinutes  = 5;
     tdiExposure = 0;
     pixelGamma  = 1.0;
     pixelFilter = false;
