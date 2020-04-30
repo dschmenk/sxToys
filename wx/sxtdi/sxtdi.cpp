@@ -215,7 +215,6 @@ private:
     float        trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
     wxImage     *scanImage;
     wxTimer      tdiTimer;
-    void updateImage(uint16_t *pixels);
     void DoAlign();
     void DoTDI();
     void OnTimer(wxTimerEvent& event);
@@ -341,6 +340,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     tdiExposure = 0;
     pixelGamma  = 1.0;
     pixelFilter = false;
+    calcRamp(MIN_PIX, MAX_PIX, pixelGamma, pixelFilter);
     if (sxOpen(ccdModel))
     {
         ccdModel = sxGetModel(0);
@@ -373,37 +373,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     SetStatusText("Rate: -.--- row/s", 1);
     SetClientSize(winWidth, winHeight);
 }
-void ScanFrame::updateImage(uint16_t *pixels)
-{
-    static int pixelMax = MIN_PIX, pixelMin = MAX_PIX;
-    int        winWidth, winHeight;
-    GetClientSize(&winWidth, &winHeight);
-    if (winWidth > 0 && winHeight > 0)
-    {
-        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
-        pixelMax = MIN_PIX;
-        pixelMin = MAX_PIX;
-        unsigned char *rgb = scanImage->GetData();
-        uint16_t      *m16;
-        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
-        {
-            m16 = &pixels[ccdFrameWidth - y - 1];
-            for (int x = 0; x < ccdFrameHeight; x++)
-            {
-                if (*m16 < pixelMin) pixelMin = *m16;
-                if (*m16 > pixelMax) pixelMax = *m16;
-                rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
-                rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
-                rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
-                rgb   += 3;
-                m16   += ccdFrameWidth;
-            }
-        }
-        wxClientDC dc(this);
-        wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
-        dc.DrawBitmap(bitmap, 0, 0);
-    }
-}
 void ScanFrame::DoAlign()
 {
     static int numFrames;
@@ -419,6 +388,13 @@ void ScanFrame::DoAlign()
                  1, // xbin
                  1, // ybin
                  (unsigned char *)ccdFrame); //pixbuf
+    for (int reverse = 0; reverse < ccdFrameHeight; reverse++)
+        for (int scan = 0; scan < ccdFrameWidth; scan++)
+        {
+            int swap = ccdFrame[reverse * ccdFrameWidth + scan];
+            ccdFrame[reverse * ccdFrameWidth + scan] = ccdFrame[(ccdFrameHeight - reverse - 1) * ccdFrameWidth + scan];
+            ccdFrame[(ccdFrameHeight - reverse - 1) * ccdFrameWidth + scan] = swap;
+        }
     if (numFrames == 0)
     {
         //
@@ -446,11 +422,39 @@ void ScanFrame::DoAlign()
             {
                 printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
                 if (trackStarInitialY < trackStarY)
+                {
                     tdiExposure = (ALIGN_EXP * numFrames) / (trackStarY - trackStarInitialY);
-                tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP/1000 * numFrames++);
+                    tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP/1000 * numFrames++);
+                }
             }
     }
-    updateImage(ccdFrame);
+    int pixelMax, pixelMin;
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        pixelMax = MIN_PIX;
+        pixelMin = MAX_PIX;
+        unsigned char *rgb = scanImage->GetData();
+        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        {
+            uint16_t *m16 = &(ccdFrame[ccdFrameWidth - y - 1]);
+            for (int x = 0; x < ccdFrameHeight; x++)
+            {
+                if (*m16 > pixelMax) pixelMax = *m16;
+                if (*m16 < pixelMin) pixelMin = *m16;
+                rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
+                rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
+                rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
+                rgb   += 3;
+                m16   += ccdFrameWidth;
+            }
+        }
+        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
+        wxClientDC dc(this);
+        wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+        dc.DrawBitmap(bitmap, 0, 0);
+    }
     sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
     SetStatusText(statusText, 1);
 }
@@ -467,7 +471,34 @@ void ScanFrame::DoTDI()
                  1, // xbin
                  1, // ybin
                  (unsigned char *)ccdRow); //pixbuf
-    updateImage(tdiRow < ccdFrameHeight ? tdiFrame : &tdiFrame[ccdFrameWidth * (tdiRow - ccdFrameHeight)]);
+    uint16_t *pixels = (tdiRow < ccdFrameHeight) ? tdiFrame : &(tdiFrame[ccdFrameWidth * (tdiRow - ccdFrameHeight)]);
+    int pixelMax, pixelMin;
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        pixelMax = MIN_PIX;
+        pixelMin = MAX_PIX;
+        unsigned char *rgb = scanImage->GetData();
+        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        {
+            uint16_t *m16 = &(pixels[ccdFrameWidth - y - 1]);
+            for (int x = 0; x < ccdFrameHeight; x++)
+            {
+                if (*m16 > pixelMax) pixelMax = *m16;
+                if (*m16 < pixelMin) pixelMin = *m16;
+                rgb[0] = redLUT[LUT_INDEX(*m16)];
+                rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
+                rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
+                rgb   += 3;
+                m16   += ccdFrameWidth;
+            }
+        }
+        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
+        wxClientDC dc(this);
+        wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+        dc.DrawBitmap(bitmap, 0, 0);
+    }
     if (++tdiRow == tdiLength)
     {
         tdiTimer.Stop();
