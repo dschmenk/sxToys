@@ -34,6 +34,7 @@
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
 #endif
+#include <wx/numdlg.h>
 #include <wx/cmdline.h>
 #include "sxtdi.h"
 #define ALIGN_EXP       2000
@@ -224,8 +225,11 @@ private:
     void OnFilter(wxCommandEvent& event);
     void OnAlign(wxCommandEvent& event);
     void OnScan(wxCommandEvent& event);
+    void OnDuration(wxCommandEvent& event);
     void OnStop(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
+    void OnBackground(wxEraseEvent& event);
+    void OnPaint(wxPaintEvent& event);
     wxDECLARE_EVENT_TABLE();
 };
 enum
@@ -234,6 +238,7 @@ enum
     ID_FILTER,
     ID_ALIGN,
     ID_SCAN,
+    ID_DURATION,
     ID_STOP,
 };
 enum
@@ -248,11 +253,14 @@ wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_MENU(ID_FILTER,     ScanFrame::OnFilter)
     EVT_MENU(ID_ALIGN,      ScanFrame::OnAlign)
     EVT_MENU(ID_SCAN,       ScanFrame::OnScan)
+    EVT_MENU(ID_DURATION,   ScanFrame::OnDuration)
     EVT_MENU(ID_STOP,       ScanFrame::OnStop)
     EVT_MENU(wxID_NEW,      ScanFrame::OnNew)
     EVT_MENU(wxID_SAVE,     ScanFrame::OnSave)
     EVT_MENU(wxID_ABOUT,    ScanFrame::OnAbout)
     EVT_MENU(wxID_EXIT,     ScanFrame::OnExit)
+    EVT_ERASE_BACKGROUND(   ScanFrame::OnBackground)
+    EVT_PAINT(              ScanFrame::OnPaint)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(ScanApp);
 void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
@@ -265,7 +273,6 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
     wxString *modelString = new wxString(' ', 10);
     if (parser.Found(wxT("m"), modelString))
     {
-        //wxPrintf("Overriding SX camera model with: %s\n", modelString->c_str());
         //
         // Validate ccdModel
         //
@@ -315,7 +322,6 @@ bool ScanApp::OnInit()
 }
 ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TIMER)
 {
-    int winWidth, winHeight;
     char statusText[40];
     wxMenu *menuFile = new wxMenu;
     menuFile->Append(wxID_NEW, "&New\tCtrl-N");
@@ -326,6 +332,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
     menuScan->Append(ID_ALIGN, "&Align\tA");
     menuScan->Append(ID_SCAN, "&TDI Scan\tT");
+    menuScan->Append(ID_DURATION, "Scan &Duration\tD");
     menuScan->Append(ID_STOP, "S&top\tCtrl-T");
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
@@ -336,8 +343,9 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     SetMenuBar(menuBar);
     tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
-    tdiMinutes  = 5;
+    tdiMinutes  = 0;
     tdiExposure = 0;
+    tdiScanRate = 0.0;
     pixelGamma  = 1.0;
     pixelFilter = false;
     calcRamp(MIN_PIX, MAX_PIX, pixelGamma, pixelFilter);
@@ -360,9 +368,8 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         scanImage       = NULL;
         strcpy(statusText, "Attached: None");
     }
-    winHeight = ccdFrameWidth; // Swap width/height
-    winWidth  = ccdFrameHeight;
-    tdiScanRate  = 0.0;
+    int winHeight = ccdFrameWidth; // Swap width/height
+    int winWidth  = ccdFrameHeight;
     while (winHeight > 720) // Constrain initial size to something reasonable
     {
         winWidth  <<= 1;
@@ -373,12 +380,32 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     SetStatusText("Rate: -.--- row/s", 1);
     SetClientSize(winWidth, winHeight);
 }
+void ScanFrame::OnBackground(wxEraseEvent& event)
+{
+}
+void ScanFrame::OnPaint(wxPaintEvent& event)
+{
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        wxClientDC dc(this);
+        if (scanImage)
+        {
+            wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+            dc.DrawBitmap(bitmap, 0, 0);
+        }
+        else
+        {
+            dc.SetBrush(wxBrush(*wxWHITE));
+            dc.DrawRectangle(0, 0, winWidth, winHeight);
+        }
+    }
+}
 void ScanFrame::DoAlign()
 {
-    static int numFrames;
     int xRadius, yRadius;
-    char statusText[40];
-
+    uint16_t ccdInvertFrame[ccdFrameWidth * ccdFrameHeight];
     sxReadPixels(0, // cam idx
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  0, // xoffset
@@ -387,14 +414,9 @@ void ScanFrame::DoAlign()
                  ccdFrameHeight, // height
                  1, // xbin
                  1, // ybin
-                 (unsigned char *)ccdFrame); //pixbuf
-    for (int reverse = 0; reverse < ccdFrameHeight; reverse++)
-        for (int scan = 0; scan < ccdFrameWidth; scan++)
-        {
-            int swap = ccdFrame[reverse * ccdFrameWidth + scan];
-            ccdFrame[reverse * ccdFrameWidth + scan] = ccdFrame[(ccdFrameHeight - reverse - 1) * ccdFrameWidth + scan];
-            ccdFrame[(ccdFrameHeight - reverse - 1) * ccdFrameWidth + scan] = swap;
-        }
+                 (unsigned char *)ccdInvertFrame); //pixbuf
+    for (int invert = 0; invert < ccdFrameHeight; invert++)
+        memcpy(&ccdFrame[invert * ccdFrameWidth], &ccdInvertFrame[(ccdFrameHeight - 1 - invert) * ccdFrameWidth], ccdFrameWidth * sizeof(uint16_t));
     if (numFrames == 0)
     {
         //
@@ -428,13 +450,12 @@ void ScanFrame::DoAlign()
                 }
             }
     }
-    int pixelMax, pixelMin;
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
     if (winWidth > 0 && winHeight > 0)
     {
-        pixelMax = MIN_PIX;
-        pixelMin = MAX_PIX;
+        int pixelMax = MIN_PIX;
+        int pixelMin = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
         for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
@@ -454,9 +475,10 @@ void ScanFrame::DoAlign()
         wxClientDC dc(this);
         wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
+        char statusText[40];
+        sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
+        SetStatusText(statusText, 1);
     }
-    sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
-    SetStatusText(statusText, 1);
 }
 void ScanFrame::DoTDI()
 {
@@ -471,18 +493,17 @@ void ScanFrame::DoTDI()
                  1, // xbin
                  1, // ybin
                  (unsigned char *)ccdRow); //pixbuf
-    uint16_t *pixels = (tdiRow < ccdFrameHeight) ? tdiFrame : &(tdiFrame[ccdFrameWidth * (tdiRow - ccdFrameHeight)]);
-    int pixelMax, pixelMin;
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
     if (winWidth > 0 && winHeight > 0)
     {
-        pixelMax = MIN_PIX;
-        pixelMin = MAX_PIX;
+        int pixelMax       = MIN_PIX;
+        int pixelMin       = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
+        uint16_t *pixels   = (tdiRow < ccdFrameHeight) ? tdiFrame : &tdiFrame[ccdFrameWidth * (tdiRow - ccdFrameHeight)];
         for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            uint16_t *m16 = &(pixels[ccdFrameWidth - y - 1]);
+            uint16_t *m16 = &pixels[ccdFrameWidth - y - 1];
             for (int x = 0; x < ccdFrameHeight; x++)
             {
                 if (*m16 > pixelMax) pixelMax = *m16;
@@ -512,6 +533,87 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
     else
         DoAlign();
 }
+void ScanFrame::OnAlign(wxCommandEvent& event)
+{
+    if (tdiState == STATE_IDLE)
+    {
+        if (ccdModel)
+        {
+            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+            tdiTimer.Start(ALIGN_EXP);
+            memset(scanImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
+            for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
+            {
+                unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
+                for (int x = 0; x < ccdFrameHeight; x++)
+                {
+                    rgb[1] = 128;
+                    rgb   += 3;
+                }
+            }
+            tdiScanRate = 0.0;
+            numFrames   = 0;
+            tdiState    = STATE_ALIGNING;
+        }
+    }
+}
+void ScanFrame::OnDuration(wxCommandEvent& event)
+{
+    wxNumberEntryDialog dlg(this,
+                            wxT(""),
+                            wxT("Hours:"),
+                            wxT("Scan Duration"),
+                            6, 1, 12);
+    if (dlg.ShowModal() != wxID_OK)
+        return;
+    tdiMinutes = dlg.GetValue() * 60;
+}
+void ScanFrame::OnScan(wxCommandEvent& event)
+{
+    if (tdiState == STATE_IDLE)
+    {
+        if (ccdModel)
+        {
+            if (tdiFrame != NULL)
+            {
+                //
+                // OVerwrite existing scan?
+                //
+                return;
+            }
+            if (tdiExposure == 0)
+            {
+                wxLogMessage("Align & Measure Rate first");
+                return;
+            }
+            if (tdiMinutes == 0)
+            {
+                OnDuration(event);
+                if (tdiMinutes == 0)
+                    return;
+            }
+            tdiLength = tdiMinutes * 60000 / tdiExposure;
+            if (tdiLength < ccdFrameHeight)
+                tdiLength = ccdFrameHeight;
+            tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
+            memset(tdiFrame, sizeof(uint16_t) * tdiLength * ccdFrameWidth, 0);
+            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+            tdiTimer.Start(tdiExposure);
+            tdiRow   = 0;
+            tdiState = STATE_SCANNING;
+        }
+    }
+}
+void ScanFrame::OnStop(wxCommandEvent& event)
+{
+    if (tdiTimer.IsRunning())
+    {
+        tdiTimer.Stop();
+        if (tdiState == STATE_SCANNING)
+            tdiLength = tdiRow;
+        tdiState = STATE_IDLE;
+    }
+}
 void ScanFrame::OnNew(wxCommandEvent& event)
 {
     if (tdiFrame != NULL)
@@ -539,66 +641,6 @@ void ScanFrame::OnExit(wxCommandEvent& event)
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
     pixelFilter = event.IsChecked();
-}
-void ScanFrame::OnAlign(wxCommandEvent& event)
-{
-    if (tdiState == STATE_IDLE)
-    {
-        if (ccdModel)
-        {
-            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-            tdiTimer.Start(ALIGN_EXP);
-            memset(scanImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
-            for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
-            {
-                unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
-                for (int x = 0; x < ccdFrameHeight; x++)
-                {
-                    rgb[1] = 128;
-                    rgb   += 3;
-                }
-            }
-            tdiScanRate = 0.0;
-            numFrames   = 0;
-            tdiState    = STATE_ALIGNING;
-        }
-    }
-}
-void ScanFrame::OnScan(wxCommandEvent& event)
-{
-    if (tdiState == STATE_IDLE)
-    {
-        if (ccdModel)
-        {
-            if (tdiFrame != NULL)
-            {
-                //
-                // OVerwrite existing scan?
-                //
-                return;
-            }
-            if (tdiExposure == 0)
-            {
-                wxLogMessage("Align & Measure Rate first");
-                return;
-            }
-            tdiLength = tdiMinutes * 60000 / tdiExposure;
-            tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
-            memset(tdiFrame, sizeof(uint16_t) * tdiLength * ccdFrameWidth, 0);
-            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-            tdiTimer.Start(tdiExposure);
-            tdiRow   = 0;
-            tdiState = STATE_SCANNING;
-        }
-    }
-}
-void ScanFrame::OnStop(wxCommandEvent& event)
-{
-    if (tdiTimer.IsRunning())
-    {
-        tdiTimer.Stop();
-        tdiState = STATE_IDLE;
-    }
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
