@@ -541,7 +541,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         {
             sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.Start(ALIGN_EXP);
-            memset(scanImage->GetData(), ccdFrameWidth * ccdFrameHeight * 3, 0);
+            memset(scanImage->GetData(), 0, ccdFrameWidth * ccdFrameHeight * 3);
             for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
             {
                 unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
@@ -596,7 +596,7 @@ void ScanFrame::OnScan(wxCommandEvent& event)
             if (tdiLength < ccdFrameHeight)
                 tdiLength = ccdFrameHeight;
             tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
-            memset(tdiFrame, sizeof(uint16_t) * tdiLength * ccdFrameWidth, 0);
+            memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdFrameWidth);
             sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.Start(tdiExposure);
             tdiRow   = 0;
