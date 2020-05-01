@@ -35,6 +35,7 @@
     #include <wx/wx.h>
 #endif
 #include <wx/numdlg.h>
+#include <wx/filedlg.h>
 #include <wx/cmdline.h>
 #include "sxtdi.h"
 #define ALIGN_EXP       2000
@@ -203,6 +204,9 @@ class ScanFrame : public wxFrame
 public:
     ScanFrame();
 private:
+    wxString     tdiFilePath;
+    wxString     tdiFileName;
+    bool         tdiFileSaved;
     int          tdiState;
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
@@ -341,6 +345,8 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuScan, "&Scan");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
+    tdiFilePath = wxT(".");
+    tdiFileName = wxT("Untitled.fits");
     tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
     tdiMinutes  = 0;
@@ -574,13 +580,8 @@ void ScanFrame::OnScan(wxCommandEvent& event)
     {
         if (ccdModel)
         {
-            if (tdiFrame != NULL)
-            {
-                //
-                // OVerwrite existing scan?
-                //
+            if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
                 return;
-            }
             if (tdiExposure == 0)
             {
                 wxLogMessage("Align & Measure Rate first");
@@ -599,6 +600,7 @@ void ScanFrame::OnScan(wxCommandEvent& event)
             memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdFrameWidth);
             sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.Start(tdiExposure);
+            tdiFileSaved = false;
             tdiRow   = 0;
             tdiState = STATE_SCANNING;
         }
@@ -616,27 +618,40 @@ void ScanFrame::OnStop(wxCommandEvent& event)
 }
 void ScanFrame::OnNew(wxCommandEvent& event)
 {
-    if (tdiFrame != NULL)
-    {
-        //
-        // Overwrite existing scan?
-        //
-        free(tdiFrame);
-        tdiFrame = NULL;
-    }
+    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Clear unsaved image?", "New Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        return;
+    free(tdiFrame);
+    tdiFrame = NULL;
 }
 void ScanFrame::OnSave(wxCommandEvent& event)
 {
-    wxLogMessage("Save Scan");
+    char filename[255];
+    char creator[] = "sxTDI";
+    char camera[]  = "StarLight Xpress Camera";
+    wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT("FITS file (*.fits)"), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (tdiFrame != NULL)
+    {
+        if (dlg.ShowModal() == wxID_OK)
+        {
+            tdiFilePath  = dlg.GetPath();
+            tdiFileName  = dlg.GetFilename();
+            strcpy(filename, tdiFilePath.c_str());
+            strcat(filename, tdiFilePath.c_str());
+            tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdFrameWidth, tdiLength, tdiExposure, creator, camera) >= 0;
+        }
+    }
+    else
+        wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
 }
 void ScanFrame::OnExit(wxCommandEvent& event)
 {
-    if (tdiState != STATE_IDLE)
-        ;
+    if (tdiState == STATE_SCANNING && wxMessageBox("Cancel scan in progress?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        return;
+    else if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Exit without saving image?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        return;
     if (scanImage != NULL)
         delete scanImage;
     Close(true);
-
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
@@ -644,5 +659,5 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
-    wxMessageBox("Starlight Xpress Time Delay Integration Scanner\nCopyright (c) 2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Time Delay Integration Scanner\nCopyright (c) 2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
 }
