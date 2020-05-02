@@ -52,6 +52,13 @@
 #define max(a,b)        ((a)>=(b)?(a):(b))
 int ccdModel = SXCCD_MX5;
 /*
+ * Initial values
+ */
+double   initialRate     = 0.0;
+long     initialDuration = 0;
+wxString initialFileName = wxT("Untitled.fits");
+bool     autonomous      = false;
+/*
  * 16 bit image sample to RGB pixel LUT
  */
 uint8_t redLUT[LUT_SIZE];
@@ -204,6 +211,7 @@ class ScanFrame : public wxFrame
 {
 public:
     ScanFrame();
+    void StartTDI();
 private:
     wxString     tdiFilePath;
     wxString     tdiFileName;
@@ -223,6 +231,7 @@ private:
     wxTimer      tdiTimer;
     void DoAlign();
     void DoTDI();
+    void GetDuration();
     void OnTimer(wxTimerEvent& event);
     void OnNew(wxCommandEvent& event);
     void OnSave(wxCommandEvent& event);
@@ -272,6 +281,10 @@ void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
     wxApp::OnInitCmdLine(parser);
     parser.AddOption(wxT("m"), wxT("model"), wxT("camera model override"), wxCMD_LINE_VAL_STRING);
+    parser.AddOption(wxT("r"), wxT("rate"), wxT("scan rate (rows/sec)"), wxCMD_LINE_VAL_DOUBLE);
+    parser.AddOption(wxT("d"), wxT("duration"), wxT("scan duration in hours"), wxCMD_LINE_VAL_NUMBER);
+    parser.AddSwitch(wxT("a"), wxT("auto"), wxT("autonomous mode"));
+    parser.AddParam(wxT("FITS filename"), wxCMD_LINE_VAL_STRING);
 }
 bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
 {
@@ -313,6 +326,14 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
             printf("Invalid SX designation.\n");
         printf("SX model now: 0x%02X\n", ccdModel);
     }
+    if (parser.Found(wxT("r"), &initialRate))
+    {}
+    if (parser.Found(wxT("d"), &initialDuration))
+    {}
+    if (parser.Found(wxT("a")))
+        autonomous = (initialRate > 0.0 && initialDuration > 0);
+    if (parser.GetParamCount() > 0)
+        initialFileName = parser.GetParam(0);
     return wxApp::OnCmdLineParsed(parser);
 }
 bool ScanApp::OnInit()
@@ -321,6 +342,8 @@ bool ScanApp::OnInit()
     {
         ScanFrame *frame = new ScanFrame();
         frame->Show(true);
+        if (autonomous && ccdModel)
+            frame->StartTDI();
         return true;
     }
     return false;
@@ -347,12 +370,12 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
     tdiFilePath = wxT(".");
-    tdiFileName = wxT("Untitled.fits");
+    tdiFileName = initialFileName;
     tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
-    tdiMinutes  = 0;
-    tdiExposure = 0;
-    tdiScanRate = 0.0;
+    tdiMinutes  = initialDuration * 60;
+    tdiScanRate = initialRate;
+    tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0;
     pixelGamma  = 1.0;
     pixelFilter = false;
     calcRamp(MIN_PIX, MAX_PIX, pixelGamma, pixelFilter);
@@ -384,7 +407,11 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     }
     CreateStatusBar(2);
     SetStatusText(statusText, 0);
-    SetStatusText("Rate: -.--- row/s", 1);
+    if (tdiExposure > 0)
+        sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
+    else
+        sprintf(statusText, "Rate: -.-- row/s");
+    SetStatusText(statusText, 1);
     SetClientSize(winWidth, winHeight);
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
@@ -531,6 +558,16 @@ void ScanFrame::DoTDI()
     {
         tdiTimer.Stop();
         tdiState = STATE_IDLE;
+        if (autonomous)
+        {
+            char filename[255];
+            char creator[] = "sxTDI";
+            char camera[]  = "StarLight Xpress Camera";
+            strcpy(filename, tdiFileName.c_str());
+            tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdFrameWidth, tdiLength, tdiExposure, creator, camera) >= 0;
+            Close(true);
+            delete scanImage;
+        }
     }
 }
 void ScanFrame::OnTimer(wxTimerEvent& event)
@@ -572,7 +609,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         }
     }
 }
-void ScanFrame::OnDuration(wxCommandEvent& event)
+void ScanFrame::GetDuration()
 {
     wxNumberEntryDialog dlg(this,
                             wxT(""),
@@ -583,37 +620,40 @@ void ScanFrame::OnDuration(wxCommandEvent& event)
         return;
     tdiMinutes = dlg.GetValue() * 60;
 }
+void ScanFrame::OnDuration(wxCommandEvent& event)
+{
+    GetDuration();
+}
+void ScanFrame::StartTDI()
+{
+    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        return;
+    if (tdiExposure == 0)
+    {
+        wxLogMessage("Align & Measure Rate first");
+        return;
+    }
+    if (tdiMinutes == 0)
+    {
+        GetDuration();
+        if (tdiMinutes == 0)
+            return;
+    }
+    tdiLength = tdiMinutes * 60000 / tdiExposure;
+    if (tdiLength < ccdFrameHeight)
+        tdiLength = ccdFrameHeight;
+    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
+    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdFrameWidth);
+    sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    tdiTimer.Start(tdiExposure);
+    tdiFileSaved = false;
+    tdiRow       = 0;
+    tdiState     = STATE_SCANNING;
+}
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
-    if (tdiState == STATE_IDLE)
-    {
-        if (ccdModel)
-        {
-            if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-                return;
-            if (tdiExposure == 0)
-            {
-                wxLogMessage("Align & Measure Rate first");
-                return;
-            }
-            if (tdiMinutes == 0)
-            {
-                OnDuration(event);
-                if (tdiMinutes == 0)
-                    return;
-            }
-            tdiLength = tdiMinutes * 60000 / tdiExposure;
-            if (tdiLength < ccdFrameHeight)
-                tdiLength = ccdFrameHeight;
-            tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
-            memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdFrameWidth);
-            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-            tdiTimer.Start(tdiExposure);
-            tdiFileSaved = false;
-            tdiRow   = 0;
-            tdiState = STATE_SCANNING;
-        }
-    }
+    if (tdiState == STATE_IDLE && ccdModel)
+        StartTDI();
 }
 void ScanFrame::OnStop(wxCommandEvent& event)
 {
