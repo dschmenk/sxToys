@@ -154,11 +154,11 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                 {
                     /*
                      * Avoid hot pixels
-                    if ((pixel_min < ((pixel_type *)pixels)[j * image->width + i + 1])
-                     && (pixel_min < ((pixel_type *)pixels)[j * image->width + i - 1])
-                     && (pixel_min < ((pixel_type *)pixels)[(j + 1) * image->width + i])
-                     && (pixel_min < ((pixel_type *)pixels)[(j - 1) * image->width + i]))
                      */
+                     if ((pixel_min < pixels[j * width + i + 1])
+                      && (pixel_min < pixels[j * width + i - 1])
+                      && (pixel_min < pixels[(j + 1) * width + i])
+                      && (pixel_min < pixels[(j - 1) * width + i]))
                     {
                         /*
                          * Find radius of highlight
@@ -178,6 +178,7 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                             calcCentroid(width, height, pixels, i, j, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                             x = (int)(*x_centroid + 0.5);
                             y = (int)(*y_centroid + 0.5);
+                            calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                         }
                     }
                 }
