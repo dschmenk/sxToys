@@ -644,7 +644,7 @@ void ScanFrame::OnSave(wxCommandEvent& event)
             tdiFilePath  = dlg.GetPath();
             tdiFileName  = dlg.GetFilename();
             strcpy(filename, tdiFilePath.c_str());
-            strcat(filename, tdiFilePath.c_str());
+            printf("Saving to file %s\n", filename);
             tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdFrameWidth, tdiLength, tdiExposure, creator, camera) >= 0;
         }
     }
