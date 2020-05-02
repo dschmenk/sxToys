@@ -557,6 +557,14 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
                     rgb   += 3;
                 }
             }
+            int winWidth, winHeight;
+            GetClientSize(&winWidth, &winHeight);
+            if (winWidth > 0 && winHeight > 0)
+            {
+                wxClientDC dc(this);
+                wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+                dc.DrawBitmap(bitmap, 0, 0);
+            }
             tdiScanRate = 0.0;
             numFrames   = 0;
             tdiState    = STATE_ALIGNING;
@@ -649,9 +657,9 @@ void ScanFrame::OnExit(wxCommandEvent& event)
         return;
     else if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Exit without saving image?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
         return;
+    Close(true);
     if (scanImage != NULL)
         delete scanImage;
-    Close(true);
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
