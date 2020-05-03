@@ -284,7 +284,7 @@ void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
     parser.AddOption(wxT("r"), wxT("rate"), wxT("scan rate (rows/sec)"), wxCMD_LINE_VAL_DOUBLE);
     parser.AddOption(wxT("d"), wxT("duration"), wxT("scan duration in hours"), wxCMD_LINE_VAL_NUMBER);
     parser.AddSwitch(wxT("a"), wxT("auto"), wxT("autonomous mode"));
-    parser.AddParam(wxT("FITS filename"), wxCMD_LINE_VAL_STRING);
+    parser.AddParam(wxT("FITS filename"), wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 }
 bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
 {
