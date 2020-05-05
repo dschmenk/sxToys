@@ -37,6 +37,7 @@
 #include <wx/numdlg.h>
 #include <wx/filedlg.h>
 #include <wx/cmdline.h>
+#include <sys/time.h>
 #include "sxtdi.h"
 #define ALIGN_EXP       2000
 #define MAX_WHITE       65535
@@ -438,8 +439,12 @@ void ScanFrame::OnPaint(wxPaintEvent& event)
 }
 void ScanFrame::DoAlign()
 {
+    static struct timeval trackInitialTime;
+    struct timeval trackFrameTime;
+    int trackTime;
     int xRadius, yRadius;
     uint16_t ccdInvertFrame[ccdFrameWidth * ccdFrameHeight];
+    gettimeofday(&trackFrameTime, NULL);
     sxReadPixels(0, // cam idx
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  0, // xoffset
@@ -449,6 +454,8 @@ void ScanFrame::DoAlign()
                  1, // xbin
                  1, // ybin
                  (unsigned char *)ccdInvertFrame); //pixbuf
+    sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    tdiTimer.StartOnce(ALIGN_EXP);
     for (int invert = 0; invert < ccdFrameHeight; invert++)
         memcpy(&ccdFrame[invert * ccdFrameWidth], &ccdInvertFrame[(ccdFrameHeight - 1 - invert) * ccdFrameWidth], ccdFrameWidth * sizeof(uint16_t));
     if (numFrames == 0)
@@ -462,9 +469,10 @@ void ScanFrame::DoAlign()
         if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 1.0))
         {
             printf("Start tracking star at %f, %f\n", trackStarInitialX, trackStarInitialY);
-            trackStarX        = trackStarInitialX;
-            trackStarY        = trackStarInitialY;
-            numFrames         = 1;
+            trackInitialTime = trackFrameTime;
+            trackStarX = trackStarInitialX;
+            trackStarY = trackStarInitialY;
+            numFrames  = 1;
         }
     }
     else
@@ -479,8 +487,11 @@ void ScanFrame::DoAlign()
                 printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
                 if (trackStarInitialY < trackStarY)
                 {
-                    tdiExposure = (ALIGN_EXP * numFrames) / (trackStarY - trackStarInitialY);
-                    tdiScanRate = (trackStarY - trackStarInitialY) / (ALIGN_EXP/1000 * numFrames++);
+                    trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
+                    trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
+                    tdiExposure = trackTime / (trackStarY - trackStarInitialY);
+                    tdiScanRate = 1000.0 / tdiExposure;
+                    numFrames++;
                 }
             }
     }
@@ -584,7 +595,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         if (ccdModel)
         {
             sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-            tdiTimer.Start(ALIGN_EXP);
+            tdiTimer.StartOnce(ALIGN_EXP);
             memset(scanImage->GetData(), 0, ccdFrameWidth * ccdFrameHeight * 3);
             for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
             {
