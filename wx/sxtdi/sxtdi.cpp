@@ -466,7 +466,7 @@ void ScanFrame::DoAlign()
         trackStarInitialX = ccdFrameWidth/2;
         trackStarInitialY = 0.0;
         xRadius = yRadius = 15;
-        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 1.0))
+        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth/4, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 1.0))
         {
             printf("Start tracking star at %f, %f\n", trackStarInitialX, trackStarInitialY);
             trackInitialTime = trackFrameTime;
