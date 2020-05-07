@@ -129,17 +129,10 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
     y_radius    = 0;
     pixel_ave   = 0.0;
     pixel_sig   = 0.0;
-    /*
-    if (x_min < 0)      x_min = 0;
-    if (x_max > width)  x_max = width;
-    if (y_min < 0)      y_min = 0;
-    if (y_max > height) y_max = height;
-    */
     if (x_min < *x_max_radius)        x_min = *x_max_radius;
     if (x_max > width-*x_max_radius)  x_max = width-*x_max_radius;
     if (y_min < *y_max_radius)        y_min = *y_max_radius;
     if (y_max > height-*y_max_radius) y_max = height-*y_max_radius;
-
     for (j = y_min; j < y_max; j++)
         for (i = x_min; i < x_max; i++)
             pixel_ave += pixels[j * width + i];
@@ -205,6 +198,13 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
     printf("Best star @ %d, %d\n", x, y);
     return x >= 0 && y >= 0;
 }
+/*
+ * Bin choices
+ */
+wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
+/*
+ * TDI Scan App class
+ */
 class ScanApp : public wxApp
 {
 public:
@@ -425,6 +425,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0;
     pixelGamma  = 1.0;
     pixelFilter = false;
+    scanImage   = NULL;
     calcRamp(MIN_PIX, MAX_PIX, pixelGamma, pixelFilter);
     if (sxOpen(ccdModel))
     {
@@ -432,7 +433,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         sxGetFrameDimensions(0, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
         sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
-        scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
     else
@@ -442,7 +442,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         ccdFrameDepth   = 16;
         ccdPixelWidth   = ccdPixelHeight = 1;
         ccdFrame        = NULL;
-        scanImage       = NULL;
         autonomous      = false;
         strcpy(statusText, "Attached: None");
     }
@@ -583,7 +582,7 @@ void ScanFrame::DoTDI()
                  0, // xoffset
                  0, // yoffset
                  ccdFrameWidth, // width
-                 1, // height
+                 ccdBinY, // height
                  ccdBinX, // xbin
                  ccdBinY, // ybin
                  (unsigned char *)ccdRow); //pixbuf
@@ -646,6 +645,9 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         {
             sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.StartOnce(ALIGN_EXP);
+            if (scanImage)
+                delete scanImage;
+            scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
             memset(scanImage->GetData(), 0, ccdFrameWidth * ccdFrameHeight * 3);
             for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
             {
@@ -695,9 +697,8 @@ void ScanFrame::OnRate(wxCommandEvent& event)
                           rateText);
     dlg.SetTextValidator(wxFILTER_NUMERIC);
     dlg.SetMaxLength(6);
-    if ( dlg.ShowModal() == wxID_OK )
+    if (dlg.ShowModal() == wxID_OK )
     {
-        // We can be certain that this string contains letters only.
         wxString value = dlg.GetValue();
         tdiScanRate    = atof(value);
         sprintf(rateText, "Rate: %2.3f row/s", tdiScanRate);
@@ -705,9 +706,35 @@ void ScanFrame::OnRate(wxCommandEvent& event)
     }
 }
 void ScanFrame::OnBinX(wxCommandEvent& event)
-{}
+{
+    wxSingleChoiceDialog dlg(this,
+                          wxT("X Bin:"),
+                          wxT("X Binning"),
+                          3,
+                          BinChoices);
+    if (dlg.ShowModal() == wxID_OK )
+    {
+        char binText[10];
+        ccdBinX =  1 << dlg.GetSelection();
+        sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
+        SetStatusText(binText, 2);
+    }
+}
 void ScanFrame::OnBinY(wxCommandEvent& event)
-{}
+{
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Y Bin:"),
+                          wxT("Y Binning"),
+                          3,
+                          BinChoices);
+    if (dlg.ShowModal() == wxID_OK )
+    {
+        char binText[10];
+        ccdBinY =  1 << dlg.GetSelection();
+        sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
+        SetStatusText(binText, 2);
+    }
+}
 void ScanFrame::StartTDI()
 {
     int binExposure;
@@ -724,10 +751,13 @@ void ScanFrame::StartTDI()
         if (tdiMinutes == 0)
             return;
     }
+    if (scanImage)
+        delete scanImage;
     ccdBinWidth  = ccdFrameWidth  / ccdBinX;
     ccdBinHeight = ccdFrameHeight / ccdBinY;
-    binExposure = tdiExposure * ccdBinY;
-    tdiLength   = tdiMinutes * 60000 / binExposure;
+    scanImage    = new wxImage(ccdBinHeight, ccdBinWidth);
+    binExposure  = tdiExposure * ccdBinY;
+    tdiLength    = tdiMinutes * 60000 / binExposure;
     if (tdiLength < ccdBinHeight)
         tdiLength = ccdBinHeight;
     tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
