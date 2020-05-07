@@ -34,6 +34,8 @@
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
 #endif
+#include <wx/choicdlg.h>
+#include <wx/textdlg.h>
 #include <wx/numdlg.h>
 #include <wx/filedlg.h>
 #include <wx/cmdline.h>
@@ -58,6 +60,8 @@ int ccdModel = SXCCD_MX5;
 double   initialRate     = 0.0;
 long     initialDuration = 0;
 wxString initialFileName = wxT("Untitled.fits");
+long     initialBinX = 1;
+long     initialBinY = 1;
 bool     autonomous      = false;
 /*
  * 16 bit image sample to RGB pixel LUT
@@ -219,7 +223,7 @@ private:
     bool         tdiFileSaved;
     int          tdiState;
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    unsigned int ccdPixelWidth, ccdPixelHeight;
+    unsigned int ccdPixelWidth, ccdPixelHeight, ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY;
     uint16_t    *ccdFrame;
     uint16_t    *tdiFrame;
     float        pixelGamma;
@@ -240,8 +244,11 @@ private:
     void OnFilter(wxCommandEvent& event);
     void OnAlign(wxCommandEvent& event);
     void OnScan(wxCommandEvent& event);
-    void OnDuration(wxCommandEvent& event);
     void OnStop(wxCommandEvent& event);
+    void OnDuration(wxCommandEvent& event);
+    void OnRate(wxCommandEvent& event);
+    void OnBinX(wxCommandEvent& event);
+    void OnBinY(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnBackground(wxEraseEvent& event);
     void OnPaint(wxPaintEvent& event);
@@ -253,8 +260,11 @@ enum
     ID_FILTER,
     ID_ALIGN,
     ID_SCAN,
-    ID_DURATION,
     ID_STOP,
+    ID_DURATION,
+    ID_RATE,
+    ID_BINX,
+    ID_BINY,
 };
 enum
 {
@@ -268,8 +278,11 @@ wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_MENU(ID_FILTER,     ScanFrame::OnFilter)
     EVT_MENU(ID_ALIGN,      ScanFrame::OnAlign)
     EVT_MENU(ID_SCAN,       ScanFrame::OnScan)
-    EVT_MENU(ID_DURATION,   ScanFrame::OnDuration)
     EVT_MENU(ID_STOP,       ScanFrame::OnStop)
+    EVT_MENU(ID_DURATION,   ScanFrame::OnDuration)
+    EVT_MENU(ID_RATE,       ScanFrame::OnRate)
+    EVT_MENU(ID_BINX,       ScanFrame::OnBinX)
+    EVT_MENU(ID_BINY,       ScanFrame::OnBinY)
     EVT_MENU(wxID_NEW,      ScanFrame::OnNew)
     EVT_MENU(wxID_SAVE,     ScanFrame::OnSave)
     EVT_MENU(wxID_ABOUT,    ScanFrame::OnAbout)
@@ -284,6 +297,8 @@ void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
     parser.AddOption(wxT("m"), wxT("model"), wxT("camera model override"), wxCMD_LINE_VAL_STRING);
     parser.AddOption(wxT("r"), wxT("rate"), wxT("scan rate (rows/sec)"), wxCMD_LINE_VAL_DOUBLE);
     parser.AddOption(wxT("d"), wxT("duration"), wxT("scan duration in hours"), wxCMD_LINE_VAL_NUMBER);
+    parser.AddOption(wxT("x"), wxT("xbin"), wxT("x bin (1, 2, 4)"), wxCMD_LINE_VAL_NUMBER);
+    parser.AddOption(wxT("y"), wxT("ybin"), wxT("y bin (1, 2, 4)"), wxCMD_LINE_VAL_NUMBER);
     parser.AddSwitch(wxT("a"), wxT("auto"), wxT("autonomous mode"));
     parser.AddParam(wxT("FITS filename"), wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 }
@@ -331,6 +346,30 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
     {}
     if (parser.Found(wxT("d"), &initialDuration))
     {}
+    if (parser.Found(wxT("x"), &initialBinX))
+    {
+        switch (initialBinX)
+        {
+            case 1:
+            case 2:
+            case 4:
+                break;
+            default:
+                initialBinX = 1;
+        }
+    }
+    if (parser.Found(wxT("y"), &initialBinY))
+    {
+        switch (initialBinY)
+        {
+            case 1:
+            case 2:
+            case 4:
+                break;
+            default:
+                initialBinY = 1;
+        }
+    }
     if (parser.Found(wxT("a")))
         autonomous = (initialRate > 0.0 && initialDuration > 0);
     if (parser.GetParamCount() > 0)
@@ -361,13 +400,18 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
     menuScan->Append(ID_ALIGN, "&Align\tA");
     menuScan->Append(ID_SCAN, "&TDI Scan\tT");
-    menuScan->Append(ID_DURATION, "Scan &Duration\tD");
     menuScan->Append(ID_STOP, "S&top\tCtrl-T");
+    wxMenu *menuAdj = new wxMenu;
+    menuAdj->Append(ID_DURATION, "Scan &Duration...\tD");
+    menuAdj->Append(ID_RATE, "Scan &Rate...");
+    menuAdj->Append(ID_BINX, "&X Binning...");
+    menuAdj->Append(ID_BINY, "&Y Binning...");
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
     menuBar->Append(menuFile, "&File");
     menuBar->Append(menuScan, "&Scan");
+    menuBar->Append(menuAdj, "&Adjustments");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
     tdiFilePath = wxT(".");
@@ -375,6 +419,8 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
     tdiMinutes  = initialDuration * 60;
+    ccdBinX     = initialBinX;
+    ccdBinY     = initialBinY;
     tdiScanRate = initialRate;
     tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0;
     pixelGamma  = 1.0;
@@ -397,6 +443,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         ccdPixelWidth   = ccdPixelHeight = 1;
         ccdFrame        = NULL;
         scanImage       = NULL;
+        autonomous      = false;
         strcpy(statusText, "Attached: None");
     }
     int winHeight = ccdFrameWidth; // Swap width/height
@@ -406,13 +453,15 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
         winWidth  <<= 1;
         winHeight <<= 1;
     }
-    CreateStatusBar(2);
+    CreateStatusBar(3);
     SetStatusText(statusText, 0);
     if (tdiExposure > 0)
         sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
     else
         sprintf(statusText, "Rate: -.-- row/s");
     SetStatusText(statusText, 1);
+    sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
+    SetStatusText(statusText, 2);
     SetClientSize(winWidth, winHeight);
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
@@ -535,8 +584,8 @@ void ScanFrame::DoTDI()
                  0, // yoffset
                  ccdFrameWidth, // width
                  1, // height
-                 1, // xbin
-                 1, // ybin
+                 ccdBinX, // xbin
+                 ccdBinY, // ybin
                  (unsigned char *)ccdRow); //pixbuf
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
@@ -545,11 +594,11 @@ void ScanFrame::DoTDI()
         int pixelMax       = MIN_PIX;
         int pixelMin       = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
-        uint16_t *pixels   = (tdiRow < ccdFrameHeight) ? tdiFrame : &tdiFrame[ccdFrameWidth * (tdiRow - ccdFrameHeight)];
-        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        uint16_t *pixels   = (tdiRow < ccdBinHeight) ? tdiFrame : &tdiFrame[ccdBinWidth * (tdiRow - ccdBinHeight)];
+        for (int y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            uint16_t *m16 = &pixels[ccdFrameWidth - y - 1];
-            for (int x = 0; x < ccdFrameHeight; x++)
+            uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
+            for (int x = 0; x < ccdBinHeight; x++)
             {
                 if (*m16 > pixelMax) pixelMax = *m16;
                 if (*m16 < pixelMin) pixelMin = *m16;
@@ -557,7 +606,7 @@ void ScanFrame::DoTDI()
                 rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
                 rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
                 rgb   += 3;
-                m16   += ccdFrameWidth;
+                m16   += ccdBinWidth;
             }
         }
         calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
@@ -575,9 +624,10 @@ void ScanFrame::DoTDI()
             char creator[] = "sxTDI";
             char camera[]  = "StarLight Xpress Camera";
             strcpy(filename, tdiFileName.c_str());
-            tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdFrameWidth, tdiLength, tdiExposure, creator, camera) >= 0;
-            Close(true);
+            tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdBinWidth, tdiLength, tdiExposure, creator, camera) >= 0;
             delete scanImage;
+            scanImage = NULL;
+            Close(true);
         }
     }
 }
@@ -635,8 +685,32 @@ void ScanFrame::OnDuration(wxCommandEvent& event)
 {
     GetDuration();
 }
+void ScanFrame::OnRate(wxCommandEvent& event)
+{
+    char rateText[40];
+    sprintf(rateText, "%2.3f", tdiScanRate);
+    wxTextEntryDialog dlg(this,
+                          wxT("Rows/sec:"),
+                          wxT("Scan Rate"),
+                          rateText);
+    dlg.SetTextValidator(wxFILTER_NUMERIC);
+    dlg.SetMaxLength(6);
+    if ( dlg.ShowModal() == wxID_OK )
+    {
+        // We can be certain that this string contains letters only.
+        wxString value = dlg.GetValue();
+        tdiScanRate    = atof(value);
+        sprintf(rateText, "Rate: %2.3f row/s", tdiScanRate);
+        SetStatusText(rateText, 1);
+    }
+}
+void ScanFrame::OnBinX(wxCommandEvent& event)
+{}
+void ScanFrame::OnBinY(wxCommandEvent& event)
+{}
 void ScanFrame::StartTDI()
 {
+    int binExposure;
     if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
         return;
     if (tdiExposure == 0)
@@ -650,13 +724,16 @@ void ScanFrame::StartTDI()
         if (tdiMinutes == 0)
             return;
     }
-    tdiLength = tdiMinutes * 60000 / tdiExposure;
-    if (tdiLength < ccdFrameHeight)
-        tdiLength = ccdFrameHeight;
-    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdFrameWidth);
-    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdFrameWidth);
+    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
+    ccdBinHeight = ccdFrameHeight / ccdBinY;
+    binExposure = tdiExposure * ccdBinY;
+    tdiLength   = tdiMinutes * 60000 / binExposure;
+    if (tdiLength < ccdBinHeight)
+        tdiLength = ccdBinHeight;
+    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
     sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-    tdiTimer.Start(tdiExposure);
+    tdiTimer.Start(binExposure);
     tdiFileSaved = false;
     tdiRow       = 0;
     tdiState     = STATE_SCANNING;
@@ -709,9 +786,12 @@ void ScanFrame::OnExit(wxCommandEvent& event)
         return;
     else if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Exit without saving image?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
         return;
-    Close(true);
     if (scanImage != NULL)
+    {
         delete scanImage;
+        scanImage = NULL;
+    }
+    Close(true);
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
