@@ -282,7 +282,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     focusZoom       = -1;
     CreateStatusBar(4);
     SetStatusText(statusText, 0);
-    SetStatusText("Bin: 2x2", 1);
+    SetStatusText("Bin: X2", 1);
     SetClientSize(focusWinWidth, focusWinHeight);
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)
@@ -369,7 +369,7 @@ void FocusFrame::OnZoomIn(wxCommandEvent& event)
     if (focusZoom > MAX_ZOOM)
         focusZoom = MAX_ZOOM;
     if (focusZoom < 1)
-        sprintf(statusText, "Bin: %dX%d", 1 << -focusZoom, 1 << -focusZoom);
+        sprintf(statusText, "Bin: X%d", 1 << -focusZoom);
     else
         sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
     SetStatusText(statusText, 1);
@@ -382,7 +382,7 @@ void FocusFrame::OnZoomOut(wxCommandEvent& event)
     if (focusZoom < MIN_ZOOM)
         focusZoom = MIN_ZOOM;
     if (focusZoom < 1)
-        sprintf(statusText, "Bin: %dX%d", 1 << -focusZoom, 1 << -focusZoom);
+        sprintf(statusText, "Bin: X%d", 1 << -focusZoom);
     else
         sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
     SetStatusText(statusText, 1);
