@@ -575,7 +575,7 @@ void ScanFrame::DoAlign()
 }
 void ScanFrame::DoTDI()
 {
-    uint16_t *ccdRow = &tdiFrame[tdiRow * ccdFrameWidth];
+    uint16_t *ccdRow = &tdiFrame[tdiRow * ccdBinWidth];
     sxReadPixels(0, // cam idx
                  SXCCD_EXP_FLAGS_TDI_SCAN |
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
