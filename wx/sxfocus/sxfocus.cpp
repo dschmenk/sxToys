@@ -258,6 +258,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuFocus, wxT("&Focus"));
     menuBar->Append(menuHelp, wxT("&Help"));
     SetMenuBar(menuBar);
+    CreateStatusBar(4);
     pixelGamma  = 1.0;
     pixelFilter = false;
     camCount    = sxOpen(camUSBType);
@@ -306,7 +307,6 @@ bool FocusFrame::ConnectCamera(int index)
         focusWinHeight >>= 1;
     }
     focusZoom = -1;
-    CreateStatusBar(4);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
     SetClientSize(focusWinWidth, focusWinHeight);
