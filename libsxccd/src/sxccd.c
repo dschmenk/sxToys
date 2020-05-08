@@ -240,6 +240,7 @@ int sxccd_open(int defmodel)
         sleep(3);
         devc = libusb_get_device_list(NULL, &devv);
     }
+    sx_cnt = 0;
     while (devc-- > 0)
     {
         /*
