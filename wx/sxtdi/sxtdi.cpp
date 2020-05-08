@@ -864,8 +864,8 @@ bool ScanFrame::ConnectCamera(int index)
     int winWidth  = ccdFrameHeight;
     while (winHeight > 720) // Constrain initial size to something reasonable
     {
-        winWidth  <<= 1;
-        winHeight <<= 1;
+        winWidth  >>= 1;
+        winHeight >>= 1;
     }
     SetStatusText(statusText, 0);
     if (tdiExposure > 0)

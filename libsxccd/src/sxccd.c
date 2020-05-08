@@ -380,13 +380,13 @@ void sxccd_close(void)
  */
 int sxccd_get_model(unsigned int cam_idx)
 {
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     return sx_cams[cam_idx].model;
 }
 int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth)
 {
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     *width  = sx_cams[cam_idx].width;
     *height = sx_cams[cam_idx].height;
@@ -395,7 +395,7 @@ int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsign
 }
 int sxccd_get_pixel_dimensions(unsigned int cam_idx, unsigned int *pixwidth, unsigned int *pixheight)
 {
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     *pixwidth  = sx_cams[cam_idx].pix_width;
     *pixheight = sx_cams[cam_idx].pix_height;
@@ -403,7 +403,7 @@ int sxccd_get_pixel_dimensions(unsigned int cam_idx, unsigned int *pixwidth, uns
 }
 int sxccd_get_caps(unsigned int cam_idx, unsigned int *caps, unsigned int *ports)
 {
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     *caps  = sx_cams[cam_idx].caps;
     *ports = sx_cams[cam_idx].ser_ports;
@@ -414,7 +414,7 @@ int sxccd_get_caps(unsigned int cam_idx, unsigned int *caps, unsigned int *ports
  */
 int sxcd_reset(unsigned int cam_idx)
 {
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     return libusb_control_transfer(sx_cams[cam_idx].handle,
                    LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
@@ -427,7 +427,7 @@ int sxcd_reset(unsigned int cam_idx)
 }
 int sxccd_clear_frame(unsigned int cam_idx, unsigned int options)
 {
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
 #if 0
     cam_data[USB_REQ_TYPE    ]  = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT;
@@ -468,7 +468,7 @@ int sxccd_read_pixels_delayed(unsigned int cam_idx, unsigned int options, unsign
     unsigned char cam_data[22];
     int xfer, fb_size;
 
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     cam_data[USB_REQ_DATA + 0]  = xoffset;
     cam_data[USB_REQ_DATA + 1]  = xoffset >> 8;
@@ -535,7 +535,7 @@ int sxccd_read_pixels(unsigned int cam_idx, unsigned int options, unsigned int x
     unsigned char cam_data[22];
     int xfer, fb_size, err;
 
-    if (cam_idx < 0 || cam_idx >= sx_cnt)
+    if (cam_idx >= sx_cnt)
         return -1;
     options |= SXCCD_EXP_FLAGS_NOWIPE_FRAME|SXCCD_EXP_FLAGS_NOCLEAR_FRAME;
     cam_data[USB_REQ_DATA + 0]  = xoffset;
@@ -580,7 +580,7 @@ int sxccd_read_pixels(unsigned int cam_idx, unsigned int options, unsigned int x
 #endif
     {
         //printf("Error %d writing READ_PIXELS\n", err);
-    return 0;
+        return 0;
     }
     fb_size = FRAMEBUF_SIZE(width, height, sx_cams[cam_idx].depth, xbin, ybin);
     libusb_bulk_transfer(sx_cams[cam_idx].handle,
