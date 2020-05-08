@@ -301,7 +301,7 @@ wxIMPLEMENT_APP(ScanApp);
 void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
     wxApp::OnInitCmdLine(parser);
-    parser.AddOption(wxT("m"), wxT("model"), wxT("camera model override"), wxCMD_LINE_VAL_STRING);
+    parser.AddOption(wxT("m"), wxT("model"), wxT("USB camera model override"), wxCMD_LINE_VAL_STRING);
     parser.AddOption(wxT("c"), wxT("camera"), wxT("camera index"), wxCMD_LINE_VAL_NUMBER);
     parser.AddOption(wxT("r"), wxT("rate"), wxT("scan rate (rows/sec)"), wxCMD_LINE_VAL_DOUBLE);
     parser.AddOption(wxT("d"), wxT("duration"), wxT("scan duration in hours"), wxCMD_LINE_VAL_NUMBER);
@@ -441,6 +441,51 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     scanImage   = NULL;
     camCount    = sxOpen(camUSBType);
     ConnectCamera(initialCamIndex);
+}
+bool ScanFrame::ConnectCamera(int index)
+{
+    char statusText[40];
+    if (ccdFrame)
+        free(ccdFrame);
+    if (camCount)
+    {
+        if (index >= camCount)
+            index = camCount - 1;
+        camIndex = index;
+        ccdModel = sxGetModel(camIndex);
+        sxGetFrameDimensions(camIndex, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
+        sxGetPixelDimensions(camIndex, &ccdPixelWidth, &ccdPixelHeight);
+        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camIndex);
+    }
+    else
+    {
+        camIndex        = -1;
+        ccdModel        = 0;
+        ccdFrameWidth   = ccdFrameHeight = 512;
+        ccdFrameDepth   = 16;
+        ccdPixelWidth   = ccdPixelHeight = 1;
+        ccdFrame        = NULL;
+        autonomous      = false;
+        strcpy(statusText, "Attached: None");
+    }
+    int winHeight = ccdFrameWidth; // Swap width/height
+    int winWidth  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth;
+    while (winHeight > 720) // Constrain initial size to something reasonable
+    {
+        winWidth  >>= 1;
+        winHeight >>= 1;
+    }
+    SetStatusText(statusText, 0);
+    if (tdiExposure > 0)
+        sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
+    else
+        sprintf(statusText, "Rate: -.-- row/s");
+    SetStatusText(statusText, 1);
+    sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
+    SetStatusText(statusText, 2);
+    SetClientSize(winWidth, winHeight);
+    return camIndex >= 0;
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
 {
@@ -700,7 +745,11 @@ void ScanFrame::OnConnect(wxCommandEvent& event)
                           camCount,
                           CamChoices);
     if (dlg.ShowModal() == wxID_OK )
+    {
+        tdiExposure = 0;
+        tdiScanRate = 0.0;
         ConnectCamera(dlg.GetSelection());
+    }
 }
 void ScanFrame::StartTDI()
 {
@@ -831,51 +880,6 @@ void ScanFrame::OnExit(wxCommandEvent& event)
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {
     pixelFilter = event.IsChecked();
-}
-bool ScanFrame::ConnectCamera(int index)
-{
-    char statusText[40];
-    if (ccdFrame)
-        free(ccdFrame);
-    if (camCount)
-    {
-        if (index >= camCount)
-            index = camCount - 1;
-        camIndex = index;
-        ccdModel = sxGetModel(camIndex);
-        sxGetFrameDimensions(camIndex, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
-        sxGetPixelDimensions(camIndex, &ccdPixelWidth, &ccdPixelHeight);
-        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
-        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camIndex);
-    }
-    else
-    {
-        camIndex        = -1;
-        ccdModel        = 0;
-        ccdFrameWidth   = ccdFrameHeight = 512;
-        ccdFrameDepth   = 16;
-        ccdPixelWidth   = ccdPixelHeight = 1;
-        ccdFrame        = NULL;
-        autonomous      = false;
-        strcpy(statusText, "Attached: None");
-    }
-    int winHeight = ccdFrameWidth; // Swap width/height
-    int winWidth  = ccdFrameHeight;
-    while (winHeight > 720) // Constrain initial size to something reasonable
-    {
-        winWidth  >>= 1;
-        winHeight >>= 1;
-    }
-    SetStatusText(statusText, 0);
-    if (tdiExposure > 0)
-        sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
-    else
-        sprintf(statusText, "Rate: -.-- row/s");
-    SetStatusText(statusText, 1);
-    sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
-    SetStatusText(statusText, 2);
-    SetClientSize(winWidth, winHeight);
-    return camIndex >= 0;
 }
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {

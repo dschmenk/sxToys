@@ -54,6 +54,10 @@
 #define LUT_BITWIDTH    10
 #define LUT_SIZE        (1<<LUT_BITWIDTH)
 #define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
+/*
+ * Initial values
+ */
+int      camUSBType      = 0;
 long    initialCamIndex = 0;
 int     ccdModel = SXCCD_MX5;
 uint8_t redLUT[LUT_SIZE];
@@ -97,6 +101,7 @@ private:
     float        pixelGamma;
     bool         pixelFilter;
     wxTimer      focusTimer;
+    bool ConnectCamera(int index);
     void OnTimer(wxTimerEvent& event);
     void OnFilter(wxCommandEvent& event);
     void OnZoomIn(wxCommandEvent& event);
@@ -114,6 +119,7 @@ private:
     void OnExposureInc(wxCommandEvent& event);
     void OnExposureDec(wxCommandEvent& event);
     void OnExposureReset(wxCommandEvent& event);
+    void OnConnect(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     wxDECLARE_EVENT_TABLE();
@@ -137,6 +143,7 @@ enum
     ID_EXPOSE_INC,
     ID_EXPOSE_DEC,
     ID_EXPOSE_RST,
+    ID_CONNECT,
 };
 wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_TIMER(ID_TIMER,     FocusFrame::OnTimer)
@@ -156,6 +163,7 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_EXPOSE_INC, FocusFrame::OnExposureInc)
     EVT_MENU(ID_EXPOSE_DEC, FocusFrame::OnExposureDec)
     EVT_MENU(ID_EXPOSE_RST, FocusFrame::OnExposureReset)
+    EVT_MENU(ID_CONNECT,    FocusFrame::OnConnect)
     EVT_MENU(wxID_ABOUT,    FocusFrame::OnAbout)
     EVT_MENU(wxID_EXIT,     FocusFrame::OnExit)
 wxEND_EVENT_TABLE()
@@ -164,7 +172,7 @@ void FocusApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
     wxApp::OnInitCmdLine(parser);
     parser.AddOption(wxT("c"), wxT("camera"), wxT("camera index"), wxCMD_LINE_VAL_NUMBER);
-    parser.AddOption(wxT("m"), wxT("model"), wxT("camera model override"), wxCMD_LINE_VAL_STRING);
+    parser.AddOption(wxT("m"), wxT("model"), wxT("USB camera model override"), wxCMD_LINE_VAL_STRING);
 }
 bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
 {
@@ -180,10 +188,10 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
             switch (toupper(modelString->GetChar(0)))
             {
                 case 'H':
-                    ccdModel &= ~SXCCD_INTERLEAVE;
+                    camUSBType &= ~SXCCD_INTERLEAVE;
                     break;
                 case 'M':
-                    ccdModel |= SXCCD_INTERLEAVE;
+                    camUSBType |= SXCCD_INTERLEAVE;
                     break;
                 default:
                     printf("Invalid model type designation.\n");
@@ -193,19 +201,19 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
                 case '5':
                 case '7':
                 case '9':
-                    ccdModel = (ccdModel & 0xC0) | (modelString->GetChar(2) - '0');
+                    camUSBType = (camUSBType & 0xC0) | (modelString->GetChar(2) - '0');
                     break;
                 default:
                     printf("Invalid model number designation.\n");
             }
             if (toupper(modelString->GetChar(3)) == 'C')
-                ccdModel |= SXCCD_COLOR;
+                camUSBType |= SXCCD_COLOR;
             else
-                ccdModel &= ~SXCCD_COLOR;
+                camUSBType &= ~SXCCD_COLOR;
         }
         else
             printf("Invalid SX designation.\n");
-        printf("SX model now: 0x%02X\n", ccdModel);
+        printf("USB SX model type: 0x%02X\n", ccdModel);
     }
     if (parser.Found(wxT("c"), &initialCamIndex))
     {}
@@ -223,8 +231,6 @@ bool FocusApp::OnInit()
 }
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
-    char statusText[40];
-    int focusWinWidth, focusWinHeight;
     wxMenu *menuFocus = new wxMenu;
     menuFocus->AppendCheckItem(ID_FILTER, wxT("Red Filter\tR"));
     menuFocus->Append(ID_ZOOM_IN,    wxT("Zoom In\t="));
@@ -250,29 +256,39 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuFocus, wxT("&Focus"));
     menuBar->Append(menuHelp, wxT("&Help"));
     SetMenuBar(menuBar);
+    pixelGamma  = 1.0;
+    pixelFilter = false;
+    camCount    = sxOpen(camUSBType);
+    camIndex    = ConnectCamera(initialCamIndex);
+}
+bool FocusFrame::ConnectCamera(int index)
+{
+    char statusText[40];
+    int focusWinWidth, focusWinHeight;
     calcRamp(MIN_PIX, MAX_PIX, 1.0, false);
     focusExposure = MIN_EXPOSURE;
     pixelMin      = MAX_WHITE;
     pixelMax      = MIN_BLACK;
     pixelBlack    = MIN_BLACK;
     pixelWhite    = MAX_WHITE;
-    pixelGamma    = 1.0;
-    pixelFilter   = false;
-    camIndex      = initialCamIndex;
-    if ((camCount = sxOpen(ccdModel)))
+    if (ccdFrame)
+        free(ccdFrame);
+    if (camCount)
     {
-        if (camIndex > camCount - 1)
-            camIndex = camCount - 1;
+        if (index >= camCount)
+            index = camCount - 1;
+        camIndex = index;
         ccdModel = sxGetModel(camIndex);
         sxGetFrameDimensions(camIndex, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
         sxGetPixelDimensions(camIndex, &ccdPixelWidth, &ccdPixelHeight);
         sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         focusTimer.StartOnce(focusExposure);
-        sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
+        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camIndex);
     }
     else
     {
+        camIndex        = -1;
         ccdModel        = 0;
         ccdFrameWidth   = ccdFrameHeight = 512;
         ccdFrameDepth   = 16;
@@ -284,8 +300,8 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     focusWinHeight  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
     while (focusWinHeight > 720) // Constrain initial size to something reasonable
     {
-        focusWinWidth  <<= 1;
-        focusWinHeight <<= 1;
+        focusWinWidth  >>= 1;
+        focusWinHeight >>= 1;
     }
     focusZoom = -1;
     CreateStatusBar(4);
@@ -363,6 +379,27 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     if (focusExposure < 1000)
         sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     focusTimer.StartOnce(focusExposure);
+}
+void FocusFrame::OnConnect(wxCommandEvent& event)
+{
+    if ((camCount = sxOpen(camUSBType)) == 0)
+    {
+        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    wxString CamChoices[camCount];
+    for (int i = 0; i < camCount; i++)
+    {
+        int model     = sxGetModel(i);
+        CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
+    }
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Camera:"),
+                          wxT("Connect Camera"),
+                          camCount,
+                          CamChoices);
+    if (dlg.ShowModal() == wxID_OK )
+        ConnectCamera(dlg.GetSelection());
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)
 {
