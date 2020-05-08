@@ -246,7 +246,7 @@ int sxccd_open(int defmodel)
     while (devc-- > 0)
     {
         /*
-         * Look SX cameras.
+         * Look for SX cameras.
          */
         libusb_get_device_descriptor(devv[devc], &desc);
         if (desc.idVendor == SX_VENDOR_ID)
