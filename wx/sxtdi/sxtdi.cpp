@@ -60,8 +60,9 @@ int ccdModel = SXCCD_MX5;
 double   initialRate     = 0.0;
 long     initialDuration = 0;
 wxString initialFileName = wxT("Untitled.fits");
-long     initialBinX = 1;
-long     initialBinY = 1;
+long     initialBinX     = 1;
+long     initialBinY     = 1;
+long     initialCamIndex = 0;
 bool     autonomous      = false;
 /*
  * 16 bit image sample to RGB pixel LUT
@@ -218,6 +219,7 @@ public:
     ScanFrame();
     void StartTDI();
 private:
+    int          camIndex, camCount;
     wxString     tdiFilePath;
     wxString     tdiFileName;
     bool         tdiFileSaved;
@@ -295,6 +297,7 @@ void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
     wxApp::OnInitCmdLine(parser);
     parser.AddOption(wxT("m"), wxT("model"), wxT("camera model override"), wxCMD_LINE_VAL_STRING);
+    parser.AddOption(wxT("c"), wxT("camera"), wxT("camera index"), wxCMD_LINE_VAL_NUMBER);
     parser.AddOption(wxT("r"), wxT("rate"), wxT("scan rate (rows/sec)"), wxCMD_LINE_VAL_DOUBLE);
     parser.AddOption(wxT("d"), wxT("duration"), wxT("scan duration in hours"), wxCMD_LINE_VAL_NUMBER);
     parser.AddOption(wxT("x"), wxT("xbin"), wxT("x bin (1, 2, 4)"), wxCMD_LINE_VAL_NUMBER);
@@ -342,6 +345,8 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
             printf("Invalid SX designation.\n");
         printf("SX model now: 0x%02X\n", ccdModel);
     }
+    if (parser.Found(wxT("c"), &initialCamIndex))
+    {}
     if (parser.Found(wxT("r"), &initialRate))
     {}
     if (parser.Found(wxT("d"), &initialDuration))
@@ -414,6 +419,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuAdj, "&Adjustments");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
+    calcRamp(MIN_PIX, MAX_PIX, 1.0, false);
     tdiFilePath = wxT(".");
     tdiFileName = initialFileName;
     tdiFrame    = NULL;
@@ -426,12 +432,14 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     pixelGamma  = 1.0;
     pixelFilter = false;
     scanImage   = NULL;
-    calcRamp(MIN_PIX, MAX_PIX, pixelGamma, pixelFilter);
-    if (sxOpen(ccdModel))
+    camIndex    = initialCamIndex;
+    if ((camCount = sxOpen(ccdModel)))
     {
-        ccdModel = sxGetModel(0);
-        sxGetFrameDimensions(0, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
-        sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
+        if (camIndex > camCount - 1)
+            camIndex = camCount - 1;
+        ccdModel = sxGetModel(camIndex);
+        sxGetFrameDimensions(camIndex, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
+        sxGetPixelDimensions(camIndex, &ccdPixelWidth, &ccdPixelHeight);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
@@ -493,7 +501,7 @@ void ScanFrame::DoAlign()
     int xRadius, yRadius;
     uint16_t ccdInvertFrame[ccdFrameWidth * ccdFrameHeight];
     gettimeofday(&trackFrameTime, NULL);
-    sxReadPixels(0, // cam idx
+    sxReadPixels(camIndex, // cam idx
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  0, // xoffset
                  0, // yoffset
@@ -502,7 +510,7 @@ void ScanFrame::DoAlign()
                  1, // xbin
                  1, // ybin
                  (unsigned char *)ccdInvertFrame); //pixbuf
-    sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     tdiTimer.StartOnce(ALIGN_EXP);
     for (int invert = 0; invert < ccdFrameHeight; invert++)
         memcpy(&ccdFrame[invert * ccdFrameWidth], &ccdInvertFrame[(ccdFrameHeight - 1 - invert) * ccdFrameWidth], ccdFrameWidth * sizeof(uint16_t));
@@ -576,7 +584,7 @@ void ScanFrame::DoAlign()
 void ScanFrame::DoTDI()
 {
     uint16_t *ccdRow = &tdiFrame[tdiRow * ccdBinWidth];
-    sxReadPixels(0, // cam idx
+    sxReadPixels(camIndex, // cam idx
                  SXCCD_EXP_FLAGS_TDI_SCAN |
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  0, // xoffset
@@ -643,7 +651,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
     {
         if (ccdModel)
         {
-            sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+            sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
             tdiTimer.StartOnce(ALIGN_EXP);
             if (scanImage)
                 delete scanImage;
@@ -762,7 +770,7 @@ void ScanFrame::StartTDI()
         tdiLength = ccdBinHeight;
     tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
     memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     tdiTimer.Start(binExposure);
     tdiFileSaved = false;
     tdiRow       = 0;

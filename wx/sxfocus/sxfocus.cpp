@@ -54,7 +54,8 @@
 #define LUT_BITWIDTH    10
 #define LUT_SIZE        (1<<LUT_BITWIDTH)
 #define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
-int ccdModel = SXCCD_MX5;
+long    initialCamIndex = 0;
+int     ccdModel = SXCCD_MX5;
 uint8_t redLUT[LUT_SIZE];
 uint8_t blugrnLUT[LUT_SIZE];
 static void calcRamp(int black, int white, float gamma, bool filter)
@@ -86,6 +87,7 @@ class FocusFrame : public wxFrame
 public:
     FocusFrame();
 private:
+    int          camIndex, camCount;
     unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int ccdPixelWidth, ccdPixelHeight;
     uint16_t    *ccdFrame;
@@ -161,6 +163,7 @@ wxIMPLEMENT_APP(FocusApp);
 void FocusApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
     wxApp::OnInitCmdLine(parser);
+    parser.AddOption(wxT("c"), wxT("camera"), wxT("camera index"), wxCMD_LINE_VAL_NUMBER);
     parser.AddOption(wxT("m"), wxT("model"), wxT("camera model override"), wxCMD_LINE_VAL_STRING);
 }
 bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
@@ -204,6 +207,8 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
             printf("Invalid SX designation.\n");
         printf("SX model now: 0x%02X\n", ccdModel);
     }
+    if (parser.Found(wxT("c"), &initialCamIndex))
+    {}
     return wxApp::OnCmdLineParsed(parser);
 }
 bool FocusApp::OnInit()
@@ -245,6 +250,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuFocus, wxT("&Focus"));
     menuBar->Append(menuHelp, wxT("&Help"));
     SetMenuBar(menuBar);
+    calcRamp(MIN_PIX, MAX_PIX, 1.0, false);
     focusExposure = MIN_EXPOSURE;
     pixelMin      = MAX_WHITE;
     pixelMax      = MIN_BLACK;
@@ -252,14 +258,16 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     pixelWhite    = MAX_WHITE;
     pixelGamma    = 1.0;
     pixelFilter   = false;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-    if (sxOpen(ccdModel))
+    camIndex      = initialCamIndex;
+    if ((camCount = sxOpen(ccdModel)))
     {
-        ccdModel = sxGetModel(0);
-        sxGetFrameDimensions(0, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
-        sxGetPixelDimensions(0, &ccdPixelWidth, &ccdPixelHeight);
-        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
-        ccdFrame        = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        if (camIndex > camCount - 1)
+            camIndex = camCount - 1;
+        ccdModel = sxGetModel(camIndex);
+        sxGetFrameDimensions(camIndex, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
+        sxGetPixelDimensions(camIndex, &ccdPixelWidth, &ccdPixelHeight);
+        sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         focusTimer.StartOnce(focusExposure);
         sprintf(statusText, "Attached: %cX-%d", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F);
     }
@@ -279,7 +287,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
         focusWinWidth  <<= 1;
         focusWinHeight <<= 1;
     }
-    focusZoom       = -1;
+    focusZoom = -1;
     CreateStatusBar(4);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
@@ -293,7 +301,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     {
         zoomWidth  = ccdFrameWidth  >> -focusZoom;
         zoomHeight = ccdFrameHeight >> -focusZoom;
-        sxReadPixels(0, // cam idx
+        sxReadPixels(camIndex, // cam idx
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                      0, // xoffset
                      0, // yoffset
@@ -307,7 +315,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     {
         zoomWidth  = ccdFrameWidth >> focusZoom;
         zoomHeight = ccdFrameHeight >> focusZoom;
-        sxReadPixels(0, // cam idx
+        sxReadPixels(camIndex, // cam idx
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                      (ccdFrameWidth  - zoomWidth)  / 2, // xoffset
                      (ccdFrameHeight - zoomHeight) / 2, // yoffset
@@ -353,7 +361,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
      * Prep next frame
      */
     if (focusExposure < 1000)
-        sxClearFrame(0, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)
