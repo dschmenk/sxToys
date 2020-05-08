@@ -308,6 +308,7 @@ bool FocusFrame::ConnectCamera(int index)
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
     SetClientSize(focusWinWidth, focusWinHeight);
+    return camIndex >= 0;
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)
 {
