@@ -249,6 +249,8 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuFocus->Append(ID_EXPOSE_DEC, wxT("Exposure Dec\t,"));
     menuFocus->Append(ID_EXPOSE_RST, wxT("Exposure Reset\t/"));
     menuFocus->AppendSeparator();
+    menuFocus->Append(ID_CONNECT,    wxT("&Connect Camera..."));
+    menuFocus->AppendSeparator();
     menuFocus->Append(wxID_EXIT);
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
