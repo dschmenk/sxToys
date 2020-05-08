@@ -682,14 +682,12 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 }
 void ScanFrame::OnConnect(wxCommandEvent& event)
 {
-    wxString CamChoices[4];
     if ((camCount = sxOpen(ccdModel)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
-    if (camCount > 4)
-        camCount = 4;
+    wxString CamChoices[camCount];
     for (int i = 0; i < camCount; i++)
     {
         int model     = sxGetModel(i);

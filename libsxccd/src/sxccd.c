@@ -218,8 +218,10 @@ int sxccd_open(int defmodel)
     struct libusb_device_descriptor desc;
     struct libusb_config_descriptor *config;
 
-    if (sx_cnt) sxccd_close();
-    libusb_init(NULL);
+    if (sx_cnt)
+        while (sx_cnt--) libusb_close(sx_cams[sx_cnt].handle);
+    else
+        libusb_init(NULL);
     devc  = libusb_get_device_list(NULL, &devv);
     renum = 0;
     for (i = 0; i < devc; i++)
