@@ -683,7 +683,6 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 }
 void ScanFrame::OnConnect(wxCommandEvent& event)
 {
-    sxClose();
     if ((camCount = sxOpen(camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
