@@ -218,6 +218,7 @@ int sxccd_open(int defmodel)
     struct libusb_device_descriptor desc;
     struct libusb_config_descriptor *config;
 
+    if (sx_cnt) sxccd_close();
     libusb_init(NULL);
     devc  = libusb_get_device_list(NULL, &devv);
     renum = 0;
@@ -240,7 +241,6 @@ int sxccd_open(int defmodel)
         sleep(3);
         devc = libusb_get_device_list(NULL, &devv);
     }
-    sx_cnt = 0;
     while (devc-- > 0)
     {
         /*
