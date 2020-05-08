@@ -57,6 +57,7 @@ int ccdModel = SXCCD_MX5;
 /*
  * Initial values
  */
+int      camUSBType      = 0;
 double   initialRate     = 0.0;
 long     initialDuration = 0;
 wxString initialFileName = wxT("Untitled.fits");
@@ -322,10 +323,10 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
             switch (toupper(modelString->GetChar(0)))
             {
                 case 'H':
-                    ccdModel &= ~SXCCD_INTERLEAVE;
+                    camUSBType &= ~SXCCD_INTERLEAVE;
                     break;
                 case 'M':
-                    ccdModel |= SXCCD_INTERLEAVE;
+                    camUSBType |= SXCCD_INTERLEAVE;
                     break;
                 default:
                     printf("Invalid model type designation.\n");
@@ -335,19 +336,19 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
                 case '5':
                 case '7':
                 case '9':
-                    ccdModel = (ccdModel & 0xC0) | (modelString->GetChar(2) - '0');
+                    camUSBType = (camUSBType & 0xC0) | (modelString->GetChar(2) - '0');
                     break;
                 default:
                     printf("Invalid model number designation.\n");
             }
             if (toupper(modelString->GetChar(3)) == 'C')
-                ccdModel |= SXCCD_COLOR;
+                camUSBType |= SXCCD_COLOR;
             else
-                ccdModel &= ~SXCCD_COLOR;
+                camUSBType &= ~SXCCD_COLOR;
         }
         else
             printf("Invalid SX designation.\n");
-        printf("SX model now: 0x%02X\n", ccdModel);
+        printf("USB SX model type: 0x%02X\n", camUSBType);
     }
     if (parser.Found(wxT("c"), &initialCamIndex))
     {}
@@ -438,7 +439,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     pixelFilter = false;
     ccdFrame    = NULL;
     scanImage   = NULL;
-    camCount    = sxOpen(ccdModel);
+    camCount    = sxOpen(camUSBType);
     ConnectCamera(initialCamIndex);
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
@@ -682,7 +683,7 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 }
 void ScanFrame::OnConnect(wxCommandEvent& event)
 {
-    if ((camCount = sxOpen(ccdModel)) == 0)
+    if ((camCount = sxOpen(camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
@@ -838,7 +839,7 @@ bool ScanFrame::ConnectCamera(int index)
         free(ccdFrame);
     if (camCount)
     {
-        if (index > camCount - 1)
+        if (index >= camCount)
             index = camCount - 1;
         camIndex = index;
         ccdModel = sxGetModel(camIndex);
