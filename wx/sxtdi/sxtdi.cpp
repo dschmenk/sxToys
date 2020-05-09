@@ -197,7 +197,6 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
         *x_max_radius = x_radius;
         *y_max_radius = y_radius;
     }
-    printf("Best star @ %d, %d\n", x, y);
     return x >= 0 && y >= 0;
 }
 /*
@@ -535,8 +534,8 @@ void ScanFrame::DoAlign()
                  (unsigned char *)ccdInvertFrame); //pixbuf
     sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     tdiTimer.StartOnce(ALIGN_EXP);
-    for (int invert = 0; invert < ccdFrameHeight; invert++)
-        memcpy(&ccdFrame[invert * ccdFrameWidth], &ccdInvertFrame[(ccdFrameHeight - 1 - invert) * ccdFrameWidth], ccdFrameWidth * sizeof(uint16_t));
+    //for (int invert = 0; invert < ccdFrameHeight; invert++)
+    //    memcpy(&ccdFrame[invert * ccdFrameWidth], &ccdInvertFrame[(ccdFrameHeight - 1 - invert) * ccdFrameWidth], ccdFrameWidth * sizeof(uint16_t));
     if (numFrames == 0)
     {
         //
@@ -547,7 +546,6 @@ void ScanFrame::DoAlign()
         xRadius = yRadius = 15;
         if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth/4, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 1.0))
         {
-            printf("Start tracking star at %f, %f\n", trackStarInitialX, trackStarInitialY);
             trackInitialTime = trackFrameTime;
             trackStarX = trackStarInitialX;
             trackStarY = trackStarInitialY;
@@ -560,19 +558,26 @@ void ScanFrame::DoAlign()
         // Track star for rate measurement
         //
         xRadius = yRadius = 15;
-        if (trackStarY < (ccdFrameHeight - 1 - (tdiScanRate * ALIGN_EXP/1000)))
-            if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
+        //if ((trackStarY < (ccdFrameHeight - 1 - (tdiScanRate * ALIGN_EXP/1000)))
+        if ((trackStarY > (ccdFrameHeight - 1 - (tdiScanRate * ALIGN_EXP/1000)))
+          && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
+        {
+            if (trackStarInitialY < trackStarY)
             {
-                printf("Tracking star at %f, %f\n", trackStarX, trackStarY);
-                if (trackStarInitialY < trackStarY)
-                {
-                    trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
-                    trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
-                    tdiExposure = trackTime / (trackStarY - trackStarInitialY);
-                    tdiScanRate = 1000.0 / tdiExposure;
-                    numFrames++;
-                }
+                trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
+                trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
+                //tdiExposure = trackTime / (trackStarY - trackStarInitialY);
+                tdiExposure = trackTime / (trackStarInitialY - trackStarY);
+                tdiScanRate = 1000.0 / tdiExposure;
+                numFrames++;
             }
+        }
+        else
+        {
+            wxCommandEvent event; // Bogus event to make compiler happy
+            OnStop(event);
+            wxMessageBox("Tracking Star Lost", "SX TDI Alignment", wxOK | wxICON_INFORMATION);
+        }
     }
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
@@ -583,7 +588,9 @@ void ScanFrame::DoAlign()
         unsigned char *rgb = scanImage->GetData();
         for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            uint16_t *m16 = &(ccdFrame[ccdFrameWidth - y - 1]);
+            //uint16_t *m16 = &(ccdFrame[ccdFrameWidth - y - 1]);
+            //uint16_t *m16 = &(ccdFrame[(ccdFrameHeight - 1) * ccdFrameWidth + ccdFrameWidth - y - 1]);
+            uint16_t *m16 = &(ccdFrame[ccdFrameHeight * ccdFrameWidth - y - 1]);
             for (int x = 0; x < ccdFrameHeight; x++)
             {
                 if (*m16 > pixelMax) pixelMax = *m16;
@@ -592,7 +599,8 @@ void ScanFrame::DoAlign()
                 rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
                 rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
                 rgb   += 3;
-                m16   += ccdFrameWidth;
+                //m16   += ccdFrameWidth;
+                m16   -= ccdFrameWidth;
             }
         }
         calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
@@ -626,7 +634,8 @@ void ScanFrame::DoTDI()
         int pixelMax       = MIN_PIX;
         int pixelMin       = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
-        uint16_t *pixels   = (tdiRow < ccdBinHeight) ? tdiFrame : &tdiFrame[ccdBinWidth * (tdiRow - ccdBinHeight)];
+        //uint16_t *pixels   = (tdiRow < ccdBinHeight) ? tdiFrame : &tdiFrame[ccdBinWidth * (tdiRow - ccdBinHeight)];
+        uint16_t *pixels   = (tdiRow < ccdBinHeight) ? &tdiFrame[ccdBinWidth * (ccdBinHeight - 1)] : ccdRow;
         for (int y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
             uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
@@ -638,7 +647,8 @@ void ScanFrame::DoTDI()
                 rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
                 rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
                 rgb   += 3;
-                m16   += ccdBinWidth;
+                //m16   += ccdBinWidth;
+                m16   -= ccdBinWidth;
             }
         }
         calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
