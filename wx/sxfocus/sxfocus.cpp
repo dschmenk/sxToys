@@ -299,17 +299,20 @@ bool FocusFrame::ConnectCamera(int index)
         ccdFrame      = NULL;
         strcpy(statusText, "Attached: None");
     }
-    focusWinWidth  = ccdFrameWidth;
-    focusWinHeight = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
-    while (focusWinHeight > 720) // Constrain initial size to something reasonable
+    if (!IsMaximized())
     {
-        focusWinWidth  >>= 1;
-        focusWinHeight >>= 1;
+        focusWinWidth  = ccdFrameWidth;
+        focusWinHeight = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
+        while (focusWinHeight > 720) // Constrain initial size to something reasonable
+        {
+            focusWinWidth  >>= 1;
+            focusWinHeight >>= 1;
+        }
+        SetClientSize(focusWinWidth, focusWinHeight);
     }
     focusZoom = -1;
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
-    SetClientSize(focusWinWidth, focusWinHeight);
     return camIndex >= 0;
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)

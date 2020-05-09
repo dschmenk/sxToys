@@ -469,12 +469,16 @@ bool ScanFrame::ConnectCamera(int index)
         autonomous      = false;
         strcpy(statusText, "Attached: None");
     }
-    int winHeight = ccdFrameWidth; // Swap width/height
-    int winWidth  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth;
-    while (winHeight > 720) // Constrain initial size to something reasonable
+    if (!IsMaximized())
     {
-        winWidth  >>= 1;
-        winHeight >>= 1;
+        int winHeight = ccdFrameWidth; // Swap width/height
+        int winWidth  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth;
+        while (winHeight > 720) // Constrain initial size to something reasonable
+        {
+            winWidth  >>= 1;
+            winHeight >>= 1;
+        }
+        SetClientSize(winWidth, winHeight);
     }
     SetStatusText(statusText, 0);
     if (tdiExposure > 0)
@@ -484,7 +488,6 @@ bool ScanFrame::ConnectCamera(int index)
     SetStatusText(statusText, 1);
     sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
     SetStatusText(statusText, 2);
-    SetClientSize(winWidth, winHeight);
     return camIndex >= 0;
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
