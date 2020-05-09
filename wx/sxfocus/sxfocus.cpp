@@ -57,7 +57,7 @@
 /*
  * Initial values
  */
-int      camUSBType      = 0;
+int     camUSBType      = 0;
 long    initialCamIndex = 0;
 int     ccdModel = SXCCD_MX5;
 uint8_t redLUT[LUT_SIZE];
@@ -262,7 +262,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     pixelGamma  = 1.0;
     pixelFilter = false;
     camCount    = sxOpen(camUSBType);
-    camIndex    = ConnectCamera(initialCamIndex);
+    ConnectCamera(initialCamIndex);
 }
 bool FocusFrame::ConnectCamera(int index)
 {
@@ -291,16 +291,16 @@ bool FocusFrame::ConnectCamera(int index)
     }
     else
     {
-        camIndex        = -1;
-        ccdModel        = 0;
-        ccdFrameWidth   = ccdFrameHeight = 512;
-        ccdFrameDepth   = 16;
-        ccdPixelWidth   = ccdPixelHeight = 1;
-        ccdFrame        = NULL;
+        camIndex      = -1;
+        ccdModel      = 0;
+        ccdFrameWidth = ccdFrameHeight = 512;
+        ccdFrameDepth = 16;
+        ccdPixelWidth = ccdPixelHeight = 1;
+        ccdFrame      = NULL;
         strcpy(statusText, "Attached: None");
     }
-    focusWinWidth   = ccdFrameWidth;
-    focusWinHeight  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
+    focusWinWidth  = ccdFrameWidth;
+    focusWinHeight = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth; // Keep aspect ratio
     while (focusWinHeight > 720) // Constrain initial size to something reasonable
     {
         focusWinWidth  >>= 1;
@@ -348,13 +348,12 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
      * Convert 16 bit samples to 24 BPP image
      */
     wxImage ccdImage(zoomWidth, zoomHeight);
-    unsigned char *rgb    = ccdImage.GetData();
-    uint16_t      *m16    = ccdFrame;
-    int x, y;
+    unsigned char *rgb = ccdImage.GetData();
+    uint16_t      *m16 = ccdFrame;
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
-    for (y = 0; y < zoomHeight; y++)
-        for (x = 0; x < zoomWidth; x++)
+    for (int y = 0; y < zoomHeight; y++)
+        for (int x = 0; x < zoomWidth; x++)
         {
             if (*m16 < pixelMin) pixelMin = *m16;
             if (*m16 > pixelMax) pixelMax = *m16;
