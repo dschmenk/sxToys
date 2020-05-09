@@ -385,6 +385,8 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
 }
 void FocusFrame::OnConnect(wxCommandEvent& event)
 {
+    if (focusTimer.IsRunning())
+        focusTimer.Stop();
     if ((camCount = sxOpen(camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
@@ -403,6 +405,8 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
                           CamChoices);
     if (dlg.ShowModal() == wxID_OK )
         ConnectCamera(dlg.GetSelection());
+    else if (camIndex)
+        focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)
 {
