@@ -391,9 +391,13 @@ bool ScanApp::OnInit()
     if (wxApp::OnInit())
     {
         ScanFrame *frame = new ScanFrame();
-        frame->Show(true);
         if (autonomous && ccdModel)
+            //
+            // In autonomous mode, skip Show() to reduce processing overhead of image display
+            //
             frame->StartTDI();
+        else
+            frame->Show(true);
         return true;
     }
     return false;
