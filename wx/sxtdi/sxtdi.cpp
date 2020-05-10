@@ -531,7 +531,8 @@ void ScanFrame::DoAlign()
                  ccdFrameHeight, // height
                  1, // xbin
                  1, // ybin
-                 (unsigned char *)ccdInvertFrame); //pixbuf
+                 //(unsigned char *)ccdInvertFrame); //pixbuf
+                 (unsigned char *)ccdFrame); //pixbuf
     sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     tdiTimer.StartOnce(ALIGN_EXP);
     //for (int invert = 0; invert < ccdFrameHeight; invert++)
@@ -559,10 +560,11 @@ void ScanFrame::DoAlign()
         //
         xRadius = yRadius = 15;
         //if ((trackStarY < (ccdFrameHeight - 1 - (tdiScanRate * ALIGN_EXP/1000)))
-        if ((trackStarY > (ccdFrameHeight - 1 - (tdiScanRate * ALIGN_EXP/1000)))
+        if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
           && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
-            if (trackStarInitialY < trackStarY)
+            //if (trackStarInitialY < trackStarY)
+            if (trackStarInitialY > trackStarY)
             {
                 trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
                 trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
@@ -709,6 +711,7 @@ void ScanFrame::OnRate(wxCommandEvent& event)
     {
         wxString value = dlg.GetValue();
         tdiScanRate    = atof(value);
+        tdiExposure    = 1000.0 / tdiScanRate;
         sprintf(rateText, "Rate: %2.3f row/s", tdiScanRate);
         SetStatusText(rateText, 1);
     }
