@@ -96,6 +96,7 @@
 int sxccd_open(int defmodel);
 void sxccd_close(void);
 int sxccd_get_model(unsigned int cam_idx);
+int sxccd_set_model(unsigned int cam_idx, int model);
 int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth);
 int sxccd_get_pixel_dimensions(unsigned int cam_idx, unsigned int *pixwidth, unsigned int *pixheight);
 int sxccd_get_caps(unsigned int cam_idx, unsigned int *caps, unsigned int *ports);
@@ -109,6 +110,7 @@ int sxccd_read_pixels(unsigned int cam_idx, unsigned int options, unsigned int x
 #define sxOpen                  sxccd_open
 #define sxClose                 sxccd_close
 #define sxGetModel              sxccd_get_model
+#define sxSetModel              sxccd_set_model
 #define sxGetFrameDimensions    sxccd_get_frame_dimensions
 #define sxGetPixelDimensions    sxccd_get_pixel_dimensions
 #define sxGetCaps               sxccd_get_caps

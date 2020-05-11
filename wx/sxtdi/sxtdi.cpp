@@ -55,6 +55,23 @@
 #define max(a,b)        ((a)>=(b)?(a):(b))
 int ccdModel = SXCCD_MX5;
 /*
+ * Camera Model Overrired for generic USB/USB2 interface
+ */
+wxString FixedChoices[] = {wxT("HX-5"),
+                           wxT("HX-9"),
+                           wxT("MX-5"),
+                           wxT("MX-5C"),
+                           wxT("MX-7"),
+                           wxT("MX-7C"),
+                           wxT("MX-9")};
+int FixedModels[] = {SXCCD_HX5,
+                     SXCCD_HX9,
+                     SXCCD_MX5,
+                     SXCCD_MX5C,
+                     SXCCD_MX7,
+                     SXCCD_MX7C,
+                     SXCCD_MX9};
+/*
  * Initial values
  */
 int      camUSBType      = 0;
@@ -240,19 +257,20 @@ private:
     void DoTDI();
     void GetDuration();
     bool ConnectCamera(int index);
+    void OnConnect(wxCommandEvent& event);
+    void OnOverride(wxCommandEvent& event);
     void OnTimer(wxTimerEvent& event);
     void OnNew(wxCommandEvent& event);
     void OnSave(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
-    void OnFilter(wxCommandEvent& event);
     void OnAlign(wxCommandEvent& event);
     void OnScan(wxCommandEvent& event);
     void OnStop(wxCommandEvent& event);
+    void OnFilter(wxCommandEvent& event);
     void OnDuration(wxCommandEvent& event);
     void OnRate(wxCommandEvent& event);
     void OnBinX(wxCommandEvent& event);
     void OnBinY(wxCommandEvent& event);
-    void OnConnect(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnBackground(wxEraseEvent& event);
     void OnPaint(wxPaintEvent& event);
@@ -261,15 +279,16 @@ private:
 enum
 {
     ID_TIMER = 1,
-    ID_FILTER,
+    ID_CONNECT,
+    ID_OVERRIDE,
     ID_ALIGN,
     ID_SCAN,
     ID_STOP,
+    ID_FILTER,
     ID_DURATION,
     ID_RATE,
     ID_BINX,
     ID_BINY,
-    ID_CONNECT,
 };
 enum
 {
@@ -280,15 +299,16 @@ enum
 };
 wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_TIMER(ID_TIMER,     ScanFrame::OnTimer)
-    EVT_MENU(ID_FILTER,     ScanFrame::OnFilter)
+    EVT_MENU(ID_CONNECT,    ScanFrame::OnConnect)
+    EVT_MENU(ID_OVERRIDE,   ScanFrame::OnOverride)
     EVT_MENU(ID_ALIGN,      ScanFrame::OnAlign)
     EVT_MENU(ID_SCAN,       ScanFrame::OnScan)
     EVT_MENU(ID_STOP,       ScanFrame::OnStop)
+    EVT_MENU(ID_FILTER,     ScanFrame::OnFilter)
     EVT_MENU(ID_DURATION,   ScanFrame::OnDuration)
     EVT_MENU(ID_RATE,       ScanFrame::OnRate)
     EVT_MENU(ID_BINX,       ScanFrame::OnBinX)
     EVT_MENU(ID_BINY,       ScanFrame::OnBinY)
-    EVT_MENU(ID_CONNECT,    ScanFrame::OnConnect)
     EVT_MENU(wxID_NEW,      ScanFrame::OnNew)
     EVT_MENU(wxID_SAVE,     ScanFrame::OnSave)
     EVT_MENU(wxID_ABOUT,    ScanFrame::OnAbout)
@@ -404,29 +424,29 @@ bool ScanApp::OnInit()
 ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TIMER)
 {
     CreateStatusBar(3);
-    wxMenu *menuFile = new wxMenu;
-    menuFile->Append(wxID_NEW, "&New\tCtrl-N");
-    menuFile->Append(wxID_SAVE, "&Save...\tCtrl-S");
-    menuFile->AppendSeparator();
-    menuFile->Append(wxID_EXIT);
+    wxMenu *menuCamera = new wxMenu;
+    menuCamera->Append(ID_CONNECT, "&Connnect Camera...");
+    menuCamera->Append(ID_OVERRIDE, "&Override Camera...");
+    menuCamera->AppendSeparator();
+    menuCamera->Append(wxID_NEW, "&New\tCtrl-N");
+    menuCamera->Append(wxID_SAVE, "&Save...\tCtrl-S");
+    menuCamera->AppendSeparator();
+    menuCamera->Append(wxID_EXIT);
     wxMenu *menuScan = new wxMenu;
-    menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
     menuScan->Append(ID_ALIGN, "&Align\tA");
     menuScan->Append(ID_SCAN, "&TDI Scan\tT");
     menuScan->Append(ID_STOP, "S&top\tCtrl-T");
-    wxMenu *menuAdj = new wxMenu;
-    menuAdj->Append(ID_DURATION, "Scan &Duration...\tD");
-    menuAdj->Append(ID_RATE, "Scan &Rate...");
-    menuAdj->Append(ID_BINX, "&X Binning...");
-    menuAdj->Append(ID_BINY, "&Y Binning...");
-    menuAdj->AppendSeparator();
-    menuAdj->Append(ID_CONNECT, "&Connnect Camera...");
+    menuScan->AppendSeparator();
+    menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
+    menuScan->Append(ID_DURATION, "Scan &Duration...\tD");
+    menuScan->Append(ID_RATE, "Scan &Rate...");
+    menuScan->Append(ID_BINX, "&X Binning...");
+    menuScan->Append(ID_BINY, "&Y Binning...");
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
-    menuBar->Append(menuFile, "&File");
+    menuBar->Append(menuCamera, "&Camera");
     menuBar->Append(menuScan, "&Scan");
-    menuBar->Append(menuAdj, "&Adjustments");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
     tdiFilePath = wxT(".");
@@ -492,6 +512,52 @@ bool ScanFrame::ConnectCamera(int index)
     sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
     SetStatusText(statusText, 2);
     return camIndex >= 0;
+}
+void ScanFrame::OnConnect(wxCommandEvent& event)
+{
+    if ((camCount = sxOpen(camUSBType)) == 0)
+    {
+        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    wxString CamChoices[camCount];
+    for (int i = 0; i < camCount; i++)
+    {
+        int model     = sxGetModel(i);
+        CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
+    }
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Camera:"),
+                          wxT("Connect Camera"),
+                          camCount,
+                          CamChoices);
+    if (dlg.ShowModal() == wxID_OK )
+    {
+        tdiExposure = 0;
+        tdiScanRate = 0.0;
+        ConnectCamera(dlg.GetSelection());
+    }
+}
+void ScanFrame::OnOverride(wxCommandEvent& event)
+{
+    if (tdiTimer.IsRunning())
+        tdiTimer.Stop();
+    if ((camCount = sxOpen(camUSBType)) == 0)
+    {
+        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Camera:"),
+                          wxT("Override Camera Model"),
+                          7,
+                          FixedChoices);
+    if (dlg.ShowModal() == wxID_OK )
+    {
+        camUSBType = FixedModels[dlg.GetSelection()];
+        sxSetModel(camIndex, camUSBType);
+        ConnectCamera(camIndex);
+    }
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
 {
@@ -732,31 +798,6 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
         ccdBinY =  1 << dlg.GetSelection();
         sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
         SetStatusText(binText, 2);
-    }
-}
-void ScanFrame::OnConnect(wxCommandEvent& event)
-{
-    if ((camCount = sxOpen(camUSBType)) == 0)
-    {
-        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
-        return;
-    }
-    wxString CamChoices[camCount];
-    for (int i = 0; i < camCount; i++)
-    {
-        int model     = sxGetModel(i);
-        CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
-    }
-    wxSingleChoiceDialog dlg(this,
-                          wxT("Camera:"),
-                          wxT("Connect Camera"),
-                          camCount,
-                          CamChoices);
-    if (dlg.ShowModal() == wxID_OK )
-    {
-        tdiExposure = 0;
-        tdiScanRate = 0.0;
-        ConnectCamera(dlg.GetSelection());
     }
 }
 void ScanFrame::StartTDI()

@@ -391,6 +391,27 @@ int sxccd_get_model(unsigned int cam_idx)
         return -1;
     return sx_cams[cam_idx].model;
 }
+int sxccd_set_model(unsigned int cam_idx, int model)
+{
+    unsigned char cam_data[32];
+
+    if (cam_idx >= sx_cnt)
+        return -1;
+    //printf("Setting camera model to %02X\n", model);
+    if (libusb_control_transfer(sx_cams[cam_idx].handle,
+                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                SX_USB_CAMERA_MODEL,
+                model,
+                0,
+                NULL,
+                0,
+                1000) < 0)
+    {
+        printf("Error setting camera model.\n");
+    }
+    sxccd_open(model);
+    return sx_cams[cam_idx].model;
+}
 int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth)
 {
     if (cam_idx >= sx_cnt)

@@ -55,6 +55,23 @@
 #define LUT_SIZE        (1<<LUT_BITWIDTH)
 #define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
 /*
+ * Camera Model Overrired for generic USB/USB2 interface
+ */
+wxString FixedChoices[] = {wxT("HX-5"),
+                           wxT("HX-9"),
+                           wxT("MX-5"),
+                           wxT("MX-5C"),
+                           wxT("MX-7"),
+                           wxT("MX-7C"),
+                           wxT("MX-9")};
+int FixedModels[] = {SXCCD_HX5,
+                     SXCCD_HX9,
+                     SXCCD_MX5,
+                     SXCCD_MX5C,
+                     SXCCD_MX7,
+                     SXCCD_MX7C,
+                     SXCCD_MX9};
+/*
  * Initial values
  */
 int     camUSBType      = 0;
@@ -103,6 +120,8 @@ private:
     wxTimer      focusTimer;
     bool ConnectCamera(int index);
     void OnTimer(wxTimerEvent& event);
+    void OnConnect(wxCommandEvent& event);
+    void OnOverride(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
@@ -119,7 +138,6 @@ private:
     void OnExposureInc(wxCommandEvent& event);
     void OnExposureDec(wxCommandEvent& event);
     void OnExposureReset(wxCommandEvent& event);
-    void OnConnect(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     wxDECLARE_EVENT_TABLE();
@@ -127,6 +145,8 @@ private:
 enum
 {
     ID_TIMER = 1,
+    ID_CONNECT,
+    ID_OVERRIDE,
     ID_FILTER,
     ID_ZOOM_IN,
     ID_ZOOM_OUT,
@@ -143,10 +163,11 @@ enum
     ID_EXPOSE_INC,
     ID_EXPOSE_DEC,
     ID_EXPOSE_RST,
-    ID_CONNECT,
 };
 wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_TIMER(ID_TIMER,     FocusFrame::OnTimer)
+    EVT_MENU(ID_CONNECT,    FocusFrame::OnConnect)
+    EVT_MENU(ID_OVERRIDE,   FocusFrame::OnOverride)
     EVT_MENU(ID_FILTER,     FocusFrame::OnFilter)
     EVT_MENU(ID_ZOOM_IN,    FocusFrame::OnZoomIn)
     EVT_MENU(ID_ZOOM_OUT,   FocusFrame::OnZoomOut)
@@ -163,7 +184,6 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_EXPOSE_INC, FocusFrame::OnExposureInc)
     EVT_MENU(ID_EXPOSE_DEC, FocusFrame::OnExposureDec)
     EVT_MENU(ID_EXPOSE_RST, FocusFrame::OnExposureReset)
-    EVT_MENU(ID_CONNECT,    FocusFrame::OnConnect)
     EVT_MENU(wxID_ABOUT,    FocusFrame::OnAbout)
     EVT_MENU(wxID_EXIT,     FocusFrame::OnExit)
 wxEND_EVENT_TABLE()
@@ -231,6 +251,11 @@ bool FocusApp::OnInit()
 }
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
+    wxMenu *menuCamera = new wxMenu;
+    menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
+    menuCamera->Append(ID_OVERRIDE,   wxT("&Override Camera..."));
+    menuCamera->AppendSeparator();
+    menuCamera->Append(wxID_EXIT);
     wxMenu *menuFocus = new wxMenu;
     menuFocus->AppendCheckItem(ID_FILTER, wxT("Red Filter\tR"));
     menuFocus->Append(ID_ZOOM_IN,    wxT("Zoom In\t="));
@@ -248,13 +273,10 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuFocus->Append(ID_EXPOSE_INC, wxT("Exposure Inc\t."));
     menuFocus->Append(ID_EXPOSE_DEC, wxT("Exposure Dec\t,"));
     menuFocus->Append(ID_EXPOSE_RST, wxT("Exposure Reset\t/"));
-    menuFocus->AppendSeparator();
-    menuFocus->Append(ID_CONNECT,    wxT("&Connect Camera..."));
-    menuFocus->AppendSeparator();
-    menuFocus->Append(wxID_EXIT);
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
+    menuBar->Append(menuCamera, wxT("&Camera"));
     menuBar->Append(menuFocus, wxT("&Focus"));
     menuBar->Append(menuHelp, wxT("&Help"));
     SetMenuBar(menuBar);
@@ -314,6 +336,54 @@ bool FocusFrame::ConnectCamera(int index)
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
     return camIndex >= 0;
+}
+void FocusFrame::OnConnect(wxCommandEvent& event)
+{
+    if (focusTimer.IsRunning())
+        focusTimer.Stop();
+    if ((camCount = sxOpen(camUSBType)) == 0)
+    {
+        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    wxString CamChoices[camCount];
+    for (int i = 0; i < camCount; i++)
+    {
+        int model     = sxGetModel(i);
+        CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
+    }
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Camera:"),
+                          wxT("Connect Camera"),
+                          camCount,
+                          CamChoices);
+    if (dlg.ShowModal() == wxID_OK )
+        ConnectCamera(dlg.GetSelection());
+    else if (camIndex)
+        focusTimer.StartOnce(focusExposure);
+}
+void FocusFrame::OnOverride(wxCommandEvent& event)
+{
+    if (focusTimer.IsRunning())
+        focusTimer.Stop();
+    if ((camCount = sxOpen(camUSBType)) == 0)
+    {
+        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Camera:"),
+                          wxT("Override Camera Model"),
+                          7,
+                          FixedChoices);
+    if (dlg.ShowModal() == wxID_OK )
+    {
+        camUSBType = FixedModels[dlg.GetSelection()];
+        sxSetModel(camIndex, camUSBType);
+        ConnectCamera(camIndex);
+    }
+    else if (camIndex)
+        focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)
 {
@@ -384,31 +454,6 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     if (focusExposure < 1000)
         sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
     focusTimer.StartOnce(focusExposure);
-}
-void FocusFrame::OnConnect(wxCommandEvent& event)
-{
-    if (focusTimer.IsRunning())
-        focusTimer.Stop();
-    if ((camCount = sxOpen(camUSBType)) == 0)
-    {
-        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
-        return;
-    }
-    wxString CamChoices[camCount];
-    for (int i = 0; i < camCount; i++)
-    {
-        int model     = sxGetModel(i);
-        CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
-    }
-    wxSingleChoiceDialog dlg(this,
-                          wxT("Camera:"),
-                          wxT("Connect Camera"),
-                          camCount,
-                          CamChoices);
-    if (dlg.ShowModal() == wxID_OK )
-        ConnectCamera(dlg.GetSelection());
-    else if (camIndex)
-        focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)
 {
