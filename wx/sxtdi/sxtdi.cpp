@@ -547,6 +547,8 @@ void ScanFrame::OnOverride(wxCommandEvent& event)
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
+    if (camIndex < 0)
+        camIndex = camCount - 1;
     wxSingleChoiceDialog dlg(this,
                           wxT("Camera:"),
                           wxT("Override Camera Model"),

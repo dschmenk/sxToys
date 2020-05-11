@@ -371,6 +371,8 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
+    if (camIndex < 0)
+        camIndex = camCount - 1;
     wxSingleChoiceDialog dlg(this,
                           wxT("Camera:"),
                           wxT("Override Camera Model"),
@@ -382,7 +384,7 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
         sxSetModel(camIndex, camUSBType);
         ConnectCamera(camIndex);
     }
-    else if (camIndex)
+    else
         focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)

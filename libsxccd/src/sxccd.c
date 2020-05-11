@@ -409,8 +409,51 @@ int sxccd_set_model(unsigned int cam_idx, int model)
     {
         printf("Error setting camera model.\n");
     }
-    sxccd_open(model);
-    return sx_cams[cam_idx].model;
+    if (libusb_control_transfer(sx_cams[cam_idx].handle,
+                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+                SX_USB_CAMERA_MODEL,
+                0,
+                0,
+                cam_data,
+                2,
+                1000) < 0)
+    {
+          printf("Error reading camera model.\n");
+    }
+    sx_cams[cam_idx].model = cam_data[0];
+    //printf("SX camera model: %02X\n", sx_cams[sx_cnt].model);
+    /*
+     * Get CCD parameters.
+     */
+    if (libusb_control_transfer(sx_cams[cam_idx].handle,
+                    LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+                    SX_USB_GET_CCD,
+                    0,
+                    0,
+                    cam_data,
+                    17,
+                    1000) < 0)
+    {
+        printf("Error reading CCD parameters\n");
+    }
+    else
+    {
+        sx_cams[cam_idx].num          = 0;
+        sx_cams[cam_idx].guider       = 0;
+        sx_cams[cam_idx].hfront_porch = cam_data[0];
+        sx_cams[cam_idx].hback_porch  = cam_data[1];
+        sx_cams[cam_idx].vfront_porch = cam_data[4];
+        sx_cams[cam_idx].vback_porch  = cam_data[5];
+        sx_cams[cam_idx].width        = cam_data[2]  | (cam_data[3]  << 8);
+        sx_cams[cam_idx].height       = cam_data[6]  | (cam_data[7]  << 8);
+        sx_cams[cam_idx].depth        = cam_data[14];
+        sx_cams[cam_idx].pix_width    = cam_data[8]  | (cam_data[9]  << 8);
+        sx_cams[cam_idx].pix_height   = cam_data[10] | (cam_data[11] << 8);
+        sx_cams[cam_idx].ser_ports    = cam_data[15];
+        sx_cams[cam_idx].caps         = cam_data[16];
+        //printf("SX camera width:%d height:%d depth:%d caps:%02X\n", sx_cams[sx_cnt].width, sx_cams[sx_cnt].height, sx_cams[sx_cnt].depth, sx_cams[sx_cnt].caps);
+    }
+     return sx_cams[cam_idx].model;
 }
 int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth)
 {
