@@ -283,6 +283,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     CreateStatusBar(4);
     pixelGamma  = 1.0;
     pixelFilter = false;
+    ccdFrame    = NULL;
     camCount    = sxOpen(camUSBType);
     ConnectCamera(initialCamIndex);
 }
@@ -346,7 +347,7 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
-    wxString CamChoices[camCount];
+    wxString CamChoices[8/*camCount*/];
     for (int i = 0; i < camCount; i++)
     {
         int model     = sxGetModel(i);

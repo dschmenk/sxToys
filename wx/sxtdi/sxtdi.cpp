@@ -520,7 +520,7 @@ void ScanFrame::OnConnect(wxCommandEvent& event)
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
-    wxString CamChoices[camCount];
+    wxString CamChoices[8/*camCount*/];
     for (int i = 0; i < camCount; i++)
     {
         int model     = sxGetModel(i);
