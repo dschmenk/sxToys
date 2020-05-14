@@ -4,7 +4,7 @@ CXXFLAGS=`wx-config --cxxflags` -I ../../libsxccd/src
 OS=$(shell uname)
 LDLIBS=`wx-config --libs` -lusb-1.0
 ifeq ($(OS), Darwin)
-LDLIBS+=-rpath @executable_path/../Frameworks
+LDLIBS+= -rpath @executable_path/../Frameworks
 endif
 
 sxfocus: sxfocus.o sxccd.o
@@ -14,6 +14,8 @@ clean:
 	-rm sxFocus.app/Contents/MacOS/sxfocus
 
 bundle: sxfocus
+	-mkdir sxFocus.app/Contents/Frameworks
+	-mkdir sxFocus.app/Contents/MacOS
 	-cp /usr/local/opt/wxmac/lib/libwx_osx_cocoau_xrc-3.0.dylib sxFocus.app/Contents/Frameworks
 	-cp /usr/local/opt/wxmac/lib/libwx_osx_cocoau_webview-3.0.dylib sxFocus.app/Contents/Frameworks
 	-cp /usr/local/opt/wxmac/lib/libwx_osx_cocoau_html-3.0.dylib sxFocus.app/Contents/Frameworks
