@@ -421,7 +421,7 @@ bool ScanApp::OnInit()
     }
     return false;
 }
-ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TIMER)
+ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, ID_TIMER)
 {
     CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
@@ -449,7 +449,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, "SX TDI"), tdiTimer(this, ID_TI
     menuBar->Append(menuScan, "&Scan");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
-    tdiFilePath = wxT(".");
+    tdiFilePath = wxGetCwd();
     tdiFileName = initialFileName;
     tdiFrame    = NULL;
     tdiState    = STATE_IDLE;
@@ -751,55 +751,65 @@ void ScanFrame::GetDuration()
 }
 void ScanFrame::OnDuration(wxCommandEvent& event)
 {
-    GetDuration();
+    if (tdiState == STATE_IDLE)
+        GetDuration();
 }
 void ScanFrame::OnRate(wxCommandEvent& event)
 {
     char rateText[40];
-    sprintf(rateText, "%2.3f", tdiScanRate);
-    wxTextEntryDialog dlg(this,
-                          wxT("Rows/sec:"),
-                          wxT("Scan Rate"),
-                          rateText);
-    dlg.SetTextValidator(wxFILTER_NUMERIC);
-    dlg.SetMaxLength(6);
-    if (dlg.ShowModal() == wxID_OK )
+    if (tdiState == STATE_IDLE)
     {
-        wxString value = dlg.GetValue();
-        tdiScanRate    = atof(value);
-        tdiExposure    = 1000.0 / tdiScanRate;
-        sprintf(rateText, "Rate: %2.3f row/s", tdiScanRate);
-        SetStatusText(rateText, 1);
+        sprintf(rateText, "%2.3f", tdiScanRate);
+        wxTextEntryDialog dlg(this,
+                              wxT("Rows/sec:"),
+                              wxT("Scan Rate"),
+                              rateText);
+        dlg.SetTextValidator(wxFILTER_NUMERIC);
+        dlg.SetMaxLength(6);
+        if (dlg.ShowModal() == wxID_OK )
+        {
+            wxString value = dlg.GetValue();
+            tdiScanRate    = atof(value);
+            tdiExposure    = 1000.0 / tdiScanRate;
+            sprintf(rateText, "Rate: %2.3f row/s", tdiScanRate);
+            SetStatusText(rateText, 1);
+        }
     }
 }
 void ScanFrame::OnBinX(wxCommandEvent& event)
 {
-    wxSingleChoiceDialog dlg(this,
-                          wxT("X Bin:"),
-                          wxT("X Binning"),
-                          3,
-                          BinChoices);
-    if (dlg.ShowModal() == wxID_OK )
+    if (tdiState == STATE_IDLE)
     {
-        char binText[10];
-        ccdBinX =  1 << dlg.GetSelection();
-        sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
-        SetStatusText(binText, 2);
+        wxSingleChoiceDialog dlg(this,
+                              wxT("X Bin:"),
+                              wxT("X Binning"),
+                              3,
+                              BinChoices);
+        if (dlg.ShowModal() == wxID_OK )
+        {
+            char binText[10];
+            ccdBinX =  1 << dlg.GetSelection();
+            sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
+            SetStatusText(binText, 2);
+        }
     }
 }
 void ScanFrame::OnBinY(wxCommandEvent& event)
 {
-    wxSingleChoiceDialog dlg(this,
-                          wxT("Y Bin:"),
-                          wxT("Y Binning"),
-                          3,
-                          BinChoices);
-    if (dlg.ShowModal() == wxID_OK )
+    if (tdiState == STATE_IDLE)
     {
-        char binText[10];
-        ccdBinY =  1 << dlg.GetSelection();
-        sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
-        SetStatusText(binText, 2);
+        wxSingleChoiceDialog dlg(this,
+                              wxT("Y Bin:"),
+                              wxT("Y Binning"),
+                              3,
+                              BinChoices);
+        if (dlg.ShowModal() == wxID_OK )
+        {
+            char binText[10];
+            ccdBinY =  1 << dlg.GetSelection();
+            sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
+            SetStatusText(binText, 2);
+        }
     }
 }
 void ScanFrame::StartTDI()
@@ -837,6 +847,11 @@ void ScanFrame::StartTDI()
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
+    if (tdiState == STATE_ALIGNING)
+    {
+        tdiTimer.Stop();
+        tdiState = STATE_IDLE;
+    }
     if (tdiState == STATE_IDLE && ccdModel)
     {
         sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
@@ -865,12 +880,16 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         tdiScanRate = 0.0;
         numFrames   = 0;
         tdiState    = STATE_ALIGNING;
+        SetTitle(wxT("SX TDI [Aligning]"));
     }
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
     if (tdiState == STATE_IDLE && ccdModel)
+    {
         StartTDI();
+        SetTitle(wxT("SX TDI [Scanning]"));
+    }
 }
 void ScanFrame::OnStop(wxCommandEvent& event)
 {
@@ -886,34 +905,41 @@ void ScanFrame::OnStop(wxCommandEvent& event)
             SetStatusText(statusText, 2);
         }
         tdiState = STATE_IDLE;
+        SetTitle(wxT("SX TDI"));
     }
 }
 void ScanFrame::OnNew(wxCommandEvent& event)
 {
-    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Clear unsaved image?", "New Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-        return;
-    free(tdiFrame);
-    tdiFrame = NULL;
+    if (tdiState == STATE_IDLE)
+    {
+        if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Clear unsaved image?", "New Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+            return;
+        free(tdiFrame);
+        tdiFrame = NULL;
+    }
 }
 void ScanFrame::OnSave(wxCommandEvent& event)
 {
     char filename[255];
     char creator[] = "sxTDI";
     char camera[]  = "StarLight Xpress Camera";
-    wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT("FITS file (*.fits)"), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
-    if (tdiFrame != NULL)
+    if (tdiState == STATE_IDLE)
     {
-        if (dlg.ShowModal() == wxID_OK)
+        wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT(""/*"FITS file (*.fits)"*/), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+        if (tdiFrame != NULL)
         {
-            tdiFilePath  = dlg.GetPath();
-            tdiFileName  = dlg.GetFilename();
-            strcpy(filename, tdiFilePath.c_str());
-            printf("Saving to file %s\n", filename);
-            tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdBinWidth, tdiLength, tdiExposure, creator, camera) >= 0;
+            if (dlg.ShowModal() == wxID_OK)
+            {
+                tdiFilePath  = dlg.GetPath();
+                tdiFileName  = dlg.GetFilename();
+                strcpy(filename, tdiFilePath.c_str());
+                printf("Saving to file %s\n", filename);
+                tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdBinWidth, tdiLength, tdiExposure, creator, camera) >= 0;
+            }
         }
+        else
+            wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
     }
-    else
-        wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
 }
 void ScanFrame::OnExit(wxCommandEvent& event)
 {
