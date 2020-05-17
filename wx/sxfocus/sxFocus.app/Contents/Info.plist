@@ -2,23 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.apple.myCocoaApp</string>
+	<key>CSResourcesFileMapped</key>
+	<true/>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleIconFile</key>
+	<string>sxFocus</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>11.0</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>
 	<string>sxfocus</string>
-	<key>CFBundleIconFile</key>
-	<string>sxFocus</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.apple.myCocoaApp</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>11.0</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>1.0</string>
-	<key>CSResourcesFileMapped</key>
+	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>LSUIPresentationMode</key>
+	<integer>0</integer>
+	<key>NSHighResolutionMagnifyAllowed</key>
+	<false/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>
