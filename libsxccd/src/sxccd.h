@@ -36,9 +36,11 @@
 /*
  * CCD model parameters.
  */
-#define SXCCD_GUIDER			0x8000
-#define SXCCD_INTERLEAVE		0x0040
-#define SXCCD_COLOR			0x0080
+#define SXCCD_HX_IMAGE_FIELDS           1
+#define SXCCD_MX_IMAGE_FIELDS           2
+#define SXCCD_GUIDER					0x8000
+#define SXCCD_INTERLEAVE				0x0040
+#define SXCCD_COLOR						0x0080
 #define SXCCD_HX5                       0x0005
 #define SXCCD_HX9                       0x0009
 #define SXCCD_MX5                       0x0045
@@ -46,8 +48,36 @@
 #define SXCCD_MX7                       0x0047
 #define SXCCD_MX7C                      0x00C7
 #define SXCCD_MX9                       0x0049
-#define SXCCD_HX_IMAGE_FIELDS           1
-#define SXCCD_MX_IMAGE_FIELDS           2
+#define SXCCD_M25C		 				0x59
+#define SXCCD_M26C		 				0x5A
+#define SXCCD_H5		 				0x05
+#define SXCCD_H5C		 				0x85
+#define SXCCD_H9		 				0x09
+#define SXCCD_H9C		 				0x89
+#define SXCCD_H16		 				0x10
+#define SXCCD_H18		 				0x12
+#define SXCCD_H35		 				0x23
+#define SXCCD_H36		 				0x24
+#define SXCCD_H290		 				0x58
+#define SXCCD_H694		 				0x57
+#define SXCCD_BR694		 				0x20
+#define SXCCD_H674		 				0x56
+#define SXCCD_H694C		 				0xB7
+#define SXCCD_H674C		 				0xB6
+#define SXCCD_SuperStarC 				0x3A
+#define SXCCD_SuperStarM 				0x19
+#define SXCCD_LodeStar   				0x46
+#define SXCCD_CoStar     				0x17
+#define SXCCD_H814		 				0x28
+#define SXCCD_H814C		 				0xA8
+#define SXCCD_H825		 				0x3B
+#define SXCCD_H825C		 				0xBB
+#define SXCCD_UltraStarC 				0xBC
+#define SXCCD_UltraStarM 				0x3C
+#define SXCCD_H834		 				0x29
+#define SXCCD_H834C		 				0xA9
+#define SXCCD_H17		 				0x11
+#define SXCCD_H17C		 				0x91
 /*
  * CCD color representation.
  *  Packed colors allow individual sizes up to 16 bits.
@@ -93,17 +123,18 @@
 /*
  * Functions.
  */
+typedef unsigned int HANDLE;
 int sxccd_open(int defmodel);
 void sxccd_close(void);
-int sxccd_get_model(unsigned int cam_idx);
-int sxccd_set_model(unsigned int cam_idx, int model);
-int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth);
-int sxccd_get_pixel_dimensions(unsigned int cam_idx, unsigned int *pixwidth, unsigned int *pixheight);
-int sxccd_get_caps(unsigned int cam_idx, unsigned int *caps, unsigned int *ports);
-int sxcd_reset(unsigned int cam_idx);
-int sxccd_clear_frame(unsigned int cam_idx, unsigned int options);
-int sxccd_read_pixels_delayed(unsigned int cam_idx, unsigned int options, unsigned int xoffset, unsigned int yoffset, unsigned int width, unsigned int height, unsigned int xbin, unsigned int ybin, unsigned int msec, unsigned char *pixbuf);
-int sxccd_read_pixels(unsigned int cam_idx, unsigned int options, unsigned int xoffset, unsigned int yoffset, unsigned int width, unsigned int height, unsigned int xbin, unsigned int ybin, unsigned char *pixbuf);
+int sxccd_get_model(HANDLE cam_idx);
+int sxccd_set_model(HANDLE cam_idx, int model);
+int sxccd_get_frame_dimensions(HANDLE cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth);
+int sxccd_get_pixel_dimensions(HANDLE cam_idx, unsigned int *pixwidth, unsigned int *pixheight);
+int sxccd_get_caps(HANDLE cam_idx, unsigned int *caps, unsigned int *ports);
+int sxcd_reset(HANDLE cam_idx);
+int sxccd_clear_frame(HANDLE cam_idx, unsigned int options);
+int sxccd_read_pixels_delayed(HANDLE cam_idx, unsigned int options, unsigned int xoffset, unsigned int yoffset, unsigned int width, unsigned int height, unsigned int xbin, unsigned int ybin, unsigned int msec, unsigned char *pixbuf);
+int sxccd_read_pixels(HANDLE cam_idx, unsigned int options, unsigned int xoffset, unsigned int yoffset, unsigned int width, unsigned int height, unsigned int xbin, unsigned int ybin, unsigned char *pixbuf);
 /*
  * Pretty names
  */
