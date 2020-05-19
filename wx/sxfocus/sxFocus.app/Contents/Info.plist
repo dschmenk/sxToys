@@ -1,32 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
+<!DOCTYPE plist SYSTEM "file://localhost/System/Library/DTDs/PropertyList.dtd">
+<plist version="0.9">
 <dict>
-	<key>CFBundleIdentifier</key>
-	<string>com.apple.myCocoaApp</string>
-	<key>CSResourcesFileMapped</key>
-	<true/>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleIconFile</key>
-	<string>sxFocus</string>
+	<key>NSPrincipalClass</key>
+	<string>wxNSApplication</string>
 	<key>CFBundleInfoDictionaryVersion</key>
-	<string>11.0</string>
+	<string>6.0</string>
+	<key>CFBundleIdentifier</key>
+	<string>net.schmenk-is-a-geek.sxfocus</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>
 	<string>sxfocus</string>
+	<key>CFBundleIconFile</key>
+	<string>sxfocus.icns</string>
+	<key>CFBundleName</key>
+	<string>sxFocus</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>1.0</string>
-	<key>NSHighResolutionCapable</key>
+	<string>3.0.5</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleGetInfoString</key>
+	<string>sxFocus version 0.1.0, (c) 2003-2020 David Schmenk</string>
+	<key>CFBundleLongVersionString</key>
+	<string>0.1.0, (c) 2003-2020 David Schmenk</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright 2003-2020 David Schmenk</string>
+	<key>LSRequiresCarbon</key>
 	<true/>
-	<key>LSUIPresentationMode</key>
-	<integer>0</integer>
-	<key>NSHighResolutionMagnifyAllowed</key>
-	<false/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
+	<key>CSResourcesFileMapped</key>
+	<true/>
 </dict>
 </plist>
