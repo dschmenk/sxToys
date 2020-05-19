@@ -105,11 +105,13 @@ int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
     int count = sxOpen(hlist);
     for (int i = 0 ; i < count; i++)
     {
+#ifndef _MSC_VER
         if (sxGetCameraModel(hlist[i]) == 0)
         {
             printf("Setting camera model to %02X\n", defmodel);
             sxSetCameraModel(hlist[i], defmodel);
         }
+#endif
         sxGetCameraParams(hlist[i], SXCCD_IMAGE_HEAD, &paramlist[i]);
     }
     return count;
@@ -273,7 +275,9 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
 {
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
+#ifndef _MSC_VER
     menuCamera->Append(ID_OVERRIDE,   wxT("&Override Camera..."));
+#endif
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuFocus = new wxMenu;
@@ -387,6 +391,7 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
 }
 void FocusFrame::OnOverride(wxCommandEvent& event)
 {
+#ifndef _MSC_VER
     if (focusTimer.IsRunning())
         focusTimer.Stop();
     if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
@@ -409,6 +414,7 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
     }
     else
         focusTimer.StartOnce(focusExposure);
+#endif
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)
 {

@@ -37,7 +37,7 @@
 #define VERSION_MSD 1
 #define VERSION_LSD 4
 
-#ifdef _MSC_VER_
+#ifdef _MSC_VER
 #ifdef __cplusplus
 #define DLL_EXPORT                    extern "C" __declspec(dllexport)
 #else
