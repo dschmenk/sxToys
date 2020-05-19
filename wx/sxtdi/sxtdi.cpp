@@ -221,6 +221,26 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
  */
 wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
 /*
+ * Camera utility functions
+ */
+int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
+{
+    if (!defmodel) defmodel = SXCCD_MX5;
+    int count = sxOpen(hlist);
+    for (int i = 0 ; i < count; i++)
+    {
+#ifndef _MSC_VER
+        if (sxGetCameraModel(hlist[i]) == 0)
+        {
+            printf("Setting camera model to %02X\n", defmodel);
+            sxSetCameraModel(hlist[i], defmodel);
+        }
+#endif
+        sxGetCameraParams(hlist[i], SXCCD_IMAGE_HEAD, &paramlist[i]);
+    }
+    return count;
+}
+/*
  * TDI Scan App class
  */
 class ScanApp : public wxApp
@@ -236,23 +256,26 @@ public:
     ScanFrame();
     void StartTDI();
 private:
-    int          camIndex, camCount;
-    wxString     tdiFilePath;
-    wxString     tdiFileName;
-    bool         tdiFileSaved;
-    int          tdiState;
-    unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    unsigned int ccdPixelWidth, ccdPixelHeight, ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY;
-    uint16_t    *ccdFrame;
-    uint16_t    *tdiFrame;
-    float        pixelGamma;
-    bool         pixelFilter;
-    int          tdiLength, tdiRow, numFrames;
-    int          tdiExposure, tdiMinutes;
-    float        tdiScanRate;
-    float        trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
-    wxImage     *scanImage;
-    wxTimer      tdiTimer;
+    HANDLE         camHandles[SXCCD_MAX_CAMS];
+    t_sxccd_params camParams[SXCCD_MAX_CAMS];
+    int            camSelect, camCount;
+    wxString       tdiFilePath;
+    wxString       tdiFileName;
+    bool           tdiFileSaved;
+    int            tdiState;
+    unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
+    unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY, ccdPixelCount;
+    float          ccdPixelWidth, ccdPixelHeight;
+    uint16_t      *ccdFrame;
+    uint16_t      *tdiFrame;
+    float          pixelGamma;
+    bool           pixelFilter;
+    int            tdiLength, tdiRow, numFrames;
+    int            tdiExposure, tdiMinutes;
+    float          tdiScanRate;
+    float          trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
+    wxImage       *scanImage;
+    wxTimer        tdiTimer;
     void DoAlign();
     void DoTDI();
     void GetDuration();
@@ -426,7 +449,9 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT, "&Connnect Camera...");
+#ifndef _MSC_VER
     menuCamera->Append(ID_OVERRIDE, "&Override Camera...");
+#endif
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_NEW, "&New\tCtrl-N");
     menuCamera->Append(wxID_SAVE, "&Save...\tCtrl-S");
@@ -462,7 +487,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     pixelFilter = false;
     ccdFrame    = NULL;
     scanImage   = NULL;
-    camCount    = sxOpen(camUSBType);
+    camCount    = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
 }
 bool ScanFrame::ConnectCamera(int index)
@@ -474,20 +499,24 @@ bool ScanFrame::ConnectCamera(int index)
     {
         if (index >= camCount)
             index = camCount - 1;
-        camIndex = index;
-        ccdModel = sxGetModel(camIndex);
-        sxGetFrameDimensions(camIndex, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
-        sxGetPixelDimensions(camIndex, &ccdPixelWidth, &ccdPixelHeight);
-        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
-        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camIndex);
+        camSelect      = index;
+        ccdModel       = sxGetCameraModel(camHandles[camSelect]);
+        ccdFrameWidth  = camParams[camSelect].width;
+        ccdFrameHeight = camParams[camSelect].height;
+        ccdPixelWidth  = camParams[camSelect].pix_width;
+        ccdPixelHeight = camParams[camSelect].pix_height;
+        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1, 1);
+        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
+        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
     else
     {
-        camIndex        = -1;
+        camSelect       = -1;
         ccdModel        = 0;
         ccdFrameWidth   = ccdFrameHeight = 512;
         ccdFrameDepth   = 16;
         ccdPixelWidth   = ccdPixelHeight = 1;
+        ccdPixelCount   = 0;
         ccdFrame        = NULL;
         autonomous      = false;
         strcpy(statusText, "Attached: None");
@@ -511,11 +540,11 @@ bool ScanFrame::ConnectCamera(int index)
     SetStatusText(statusText, 1);
     sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
     SetStatusText(statusText, 2);
-    return camIndex >= 0;
+    return camSelect >= 0;
 }
 void ScanFrame::OnConnect(wxCommandEvent& event)
 {
-    if ((camCount = sxOpen(camUSBType)) == 0)
+    if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
@@ -523,7 +552,7 @@ void ScanFrame::OnConnect(wxCommandEvent& event)
     wxString CamChoices[8/*camCount*/];
     for (int i = 0; i < camCount; i++)
     {
-        int model     = sxGetModel(i);
+        int model     = sxGetCameraModel(camHandles[i]);
         CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
     }
     wxSingleChoiceDialog dlg(this,
@@ -540,15 +569,16 @@ void ScanFrame::OnConnect(wxCommandEvent& event)
 }
 void ScanFrame::OnOverride(wxCommandEvent& event)
 {
+#ifndef _MSC_VER
     if (tdiTimer.IsRunning())
         tdiTimer.Stop();
-    if ((camCount = sxOpen(camUSBType)) == 0)
+    if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
-    if (camIndex < 0)
-        camIndex = camCount - 1;
+    if (camSelect < 0)
+        camSelect = camCount - 1;
     wxSingleChoiceDialog dlg(this,
                           wxT("Camera:"),
                           wxT("Override Camera Model"),
@@ -557,9 +587,10 @@ void ScanFrame::OnOverride(wxCommandEvent& event)
     if (dlg.ShowModal() == wxID_OK )
     {
         camUSBType = FixedModels[dlg.GetSelection()];
-        sxSetModel(camIndex, camUSBType);
-        ConnectCamera(camIndex);
+        sxSetCameraModel(camHandles[camSelect], camUSBType);
+        ConnectCamera(camSelect);
     }
+#endif
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
 {
@@ -590,16 +621,19 @@ void ScanFrame::DoAlign()
     int trackTime;
     int xRadius, yRadius;
     gettimeofday(&trackFrameTime, NULL);
-    sxReadPixels(camIndex, // cam idx
-                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                 0, // xoffset
-                 0, // yoffset
-                 ccdFrameWidth, // width
-                 ccdFrameHeight, // height
-                 1, // xbin
-                 1, // ybin
-                 (unsigned char *)ccdFrame); //pixbuf
-    sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    sxLatchPixels(camHandles[camSelect], // cam handle
+                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                  SXCCD_IMAGE_HEAD, // main ccd
+                  0, // xoffset
+                  0, // yoffset
+                  ccdFrameWidth, // width
+                  ccdFrameHeight, // height
+                  1, // xbin
+                  1); // ybin
+    sxReadPixels(camHandles[camSelect], // cam handle
+                 ccdFrame, //pixbuf
+                 ccdPixelCount); // pix count
+    sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
     tdiTimer.StartOnce(ALIGN_EXP);
     if (numFrames == 0)
     {
@@ -651,7 +685,7 @@ void ScanFrame::DoAlign()
         unsigned char *rgb = scanImage->GetData();
         for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            uint16_t *m16 = &(ccdFrame[ccdFrameHeight * ccdFrameWidth - y - 1]);
+            uint16_t *m16 = &(ccdFrame[ccdPixelCount - y - 1]);
             for (int x = 0; x < ccdFrameHeight; x++)
             {
                 if (*m16 > pixelMax) pixelMax = *m16;
@@ -677,16 +711,19 @@ void ScanFrame::DoAlign()
 void ScanFrame::DoTDI()
 {
     uint16_t *ccdRow = &tdiFrame[tdiRow * ccdBinWidth];
-    sxReadPixels(camIndex, // cam idx
-                 SXCCD_EXP_FLAGS_TDI_SCAN |
-                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+    sxLatchPixels(camHandles[camSelect], // cam handle
+                  SXCCD_EXP_FLAGS_TDI |
+                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                  SXCCD_IMAGE_HEAD, // main ccd
                  0, // xoffset
                  0, // yoffset
                  ccdFrameWidth, // width
                  ccdBinY, // height
                  ccdBinX, // xbin
-                 ccdBinY, // ybin
-                 (unsigned char *)ccdRow); //pixbuf
+                 ccdBinY); // ybin
+    sxReadPixels(camHandles[camSelect], // cam handle
+                 ccdRow, //pixbuf
+                 ccdBinWidth); // pix count
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
     if (winWidth > 0 && winHeight > 0)
@@ -839,7 +876,7 @@ void ScanFrame::StartTDI()
         tdiLength = ccdBinHeight;
     tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
     memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
     tdiTimer.Start(binExposure);
     tdiFileSaved = false;
     tdiRow       = 0;
@@ -854,12 +891,12 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
     }
     if (tdiState == STATE_IDLE && ccdModel)
     {
-        sxClearFrame(camIndex, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
         tdiTimer.StartOnce(ALIGN_EXP);
         if (scanImage)
             delete scanImage;
         scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
-        memset(scanImage->GetData(), 0, ccdFrameWidth * ccdFrameHeight * 3);
+        memset(scanImage->GetData(), 0, ccdPixelCount * 3);
         for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
         {
             unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
