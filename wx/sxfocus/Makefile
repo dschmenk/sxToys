@@ -2,7 +2,7 @@ OS=$(shell uname)
 ifeq ($(OS), Darwin)
 CXX=`../wxWidgets/build-static/wx-config --cxx`
 CC=`../wxWidgets/build-static/wx-config --cxx`
-CXXFLAGS=`../wxWidgets/build-static/wx-config --cxxflags` -I ../../libsxccd/src
+CXXFLAGS=`../wxWidgets/build-static/wx-config --cxxflags` -I ../../libsxccd
 LDLIBS=-L../wxWidgets/build-static/lib -framework IOKit -framework Carbon -framework Cocoa -framework AudioToolbox -framework System -framework OpenGL \
 -lwx_osx_cocoau_xrc-3.0 -lwx_osx_cocoau_qa-3.0 -lwx_baseu_net-3.0 \
 -lwx_osx_cocoau_html-3.0 -lwx_osx_cocoau_adv-3.0 -lwx_osx_cocoau_core-3.0 -lwx_baseu_xml-3.0 -lwx_baseu-3.0 \
@@ -11,11 +11,11 @@ LDLIBS=-L../wxWidgets/build-static/lib -framework IOKit -framework Carbon -frame
 else
 CXX=`wx-config --cxx`
 CC=`wx-config --cxx`
-CXXFLAGS=`wx-config --cxxflags` -I ../../libsxccd/src
+CXXFLAGS=`wx-config --cxxflags` -I ../../libsxccd
 LDLIBS=`wx-config --libs` -lusb-1.0
 endif
 
-sxfocus: sxfocus.o sxccd.o
+sxfocus: sxfocus.o ../../libsxccd/sxccd.o
 
 clean:
 	-rm sxfocus *.o
@@ -25,5 +25,5 @@ bundle: sxfocus
 	-mkdir sxFocus.app/Contents/MacOS
 	cp sxfocus sxFocus.app/Contents/MacOS
 
-sxccd.o: ../../libsxccd/src/sxccd.c
-	$(CC) $(CFLAGS) -c $< -o $@
+../../libsxccd/sxccd.o: ../../libsxccd/sxccd.h ../../libsxccd/src/sxccd.c
+	$(MAKE) -C ../../libsxccd/

@@ -96,6 +96,24 @@ static void calcRamp(int black, int white, float gamma, bool filter)
         blugrnLUT[pix] = filter ? 0 : redLUT[pix];
     }
 }
+/*
+ * Camera utility functions
+ */
+int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
+{
+    if (!defmodel) defmodel = SXCCD_MX5;
+    int count = sxOpen(hlist);
+    for (int i = 0 ; i < count; i++)
+    {
+        if (sxGetCameraModel(hlist[i]) == 0)
+        {
+            printf("Setting camera model to %02X\n", defmodel);
+            sxSetCameraModel(hlist[i], defmodel);
+        }
+        sxGetCameraParams(hlist[i], SXCCD_IMAGE_HEAD, &paramlist[i]);
+    }
+    return count;
+}
 class FocusApp : public wxApp
 {
 public:
@@ -108,17 +126,18 @@ class FocusFrame : public wxFrame
 public:
     FocusFrame();
 private:
-	HANDLE       camHandle;
-    int          camCount;
-    unsigned int ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    unsigned int ccdPixelWidth, ccdPixelHeight;
-    uint16_t    *ccdFrame;
-    int          focusZoom, focusExposure;
-    int          pixelMax, pixelMin;
-    int          pixelBlack, pixelWhite;
-    float        pixelGamma;
-    bool         pixelFilter;
-    wxTimer      focusTimer;
+	HANDLE         camHandles[SXCCD_MAX_CAMS];
+    t_sxccd_params camParams[SXCCD_MAX_CAMS];
+    int            camSelect, camCount;
+    unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
+    float          ccdPixelWidth, ccdPixelHeight;
+    uint16_t      *ccdFrame;
+    int            focusZoom, focusExposure;
+    int            pixelMax, pixelMin;
+    int            pixelBlack, pixelWhite;
+    float          pixelGamma;
+    bool           pixelFilter;
+    wxTimer        focusTimer;
     bool ConnectCamera(int index);
     void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
@@ -285,7 +304,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     pixelGamma  = 1.0;
     pixelFilter = false;
     ccdFrame    = NULL;
-    camCount    = sxOpen(camUSBType);
+    camCount    = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
 }
 bool FocusFrame::ConnectCamera(int index)
@@ -304,17 +323,20 @@ bool FocusFrame::ConnectCamera(int index)
     {
         if (index >= camCount)
             index = camCount - 1;
-        camHandle = index;
-        ccdModel  = sxGetModel(camHandle);
-        sxGetFrameDimensions(camHandle, &ccdFrameWidth, &ccdFrameHeight, &ccdFrameDepth);
-        sxGetPixelDimensions(camHandle, &ccdPixelWidth, &ccdPixelHeight);
-        sxClearFrame(camHandle, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        camSelect      = index;
+        ccdModel       = sxGetCameraModel(camHandles[camSelect]);
+        ccdFrameWidth  = camParams[camSelect].width;
+        ccdFrameHeight = camParams[camSelect].height;
+        ccdPixelWidth  = camParams[camSelect].pix_width;
+        ccdPixelHeight = camParams[camSelect].pix_height;
+        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         focusTimer.StartOnce(focusExposure);
-        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camHandle);
+        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
     else
     {
+        camSelect     = -1;
         ccdModel      = 0;
         ccdFrameWidth = ccdFrameHeight = 512;
         ccdFrameDepth = 16;
@@ -336,13 +358,13 @@ bool FocusFrame::ConnectCamera(int index)
     focusZoom = -1;
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
-    return camHandle >= 0;
+    return camSelect >= 0;
 }
 void FocusFrame::OnConnect(wxCommandEvent& event)
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
-    if ((camCount = sxOpen(camUSBType)) == 0)
+    if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
@@ -350,7 +372,7 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
     wxString CamChoices[8/*camCount*/];
     for (int i = 0; i < camCount; i++)
     {
-        int model     = sxGetModel(i);
+        int model     = sxGetCameraModel(camHandles[i]);
         CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
     }
     wxSingleChoiceDialog dlg(this,
@@ -360,20 +382,20 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
                           CamChoices);
     if (dlg.ShowModal() == wxID_OK )
         ConnectCamera(dlg.GetSelection());
-    else if (camHandle)
+    else if (camSelect)
         focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnOverride(wxCommandEvent& event)
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
-    if ((camCount = sxOpen(camUSBType)) == 0)
+    if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
         return;
     }
-    if (camHandle < 0)
-        camHandle = camCount - 1;
+    if (camSelect < 0)
+        camSelect = camCount - 1;
     wxSingleChoiceDialog dlg(this,
                           wxT("Camera:"),
                           wxT("Override Camera Model"),
@@ -382,8 +404,8 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
     if (dlg.ShowModal() == wxID_OK )
     {
         camUSBType = FixedModels[dlg.GetSelection()];
-        sxSetModel(camHandle, camUSBType);
-        ConnectCamera(camHandle);
+        sxSetCameraModel(camHandles[camSelect], camUSBType);
+        ConnectCamera(camSelect);
     }
     else
         focusTimer.StartOnce(focusExposure);
@@ -392,34 +414,40 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
 {
     int zoomWidth, zoomHeight;
     int focusWinWidth, focusWinHeight;
+    int pixCount;
     if (focusZoom < 1)
     {
         zoomWidth  = ccdFrameWidth  >> -focusZoom;
         zoomHeight = ccdFrameHeight >> -focusZoom;
-        sxReadPixels(camHandle, // cam idx
-                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                     0, // xoffset
-                     0, // yoffset
-                     ccdFrameWidth, // width
-                     ccdFrameHeight, // height
-                     1 << -focusZoom, // xbin
-                     1 << -focusZoom, // ybin
-                     (unsigned char *)ccdFrame); //pixbuf
+        sxLatchPixels(camHandles[camSelect], // cam handle
+                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                      SXCCD_IMAGE_HEAD, // main ccd
+                      0, // xoffset
+                      0, // yoffset
+                      ccdFrameWidth, // width
+                      ccdFrameHeight, // height
+                      1 << -focusZoom, // xbin
+                      1 << -focusZoom); // ybin
+        pixCount = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1 << -focusZoom, 1 << -focusZoom);
     }
     else
     {
         zoomWidth  = ccdFrameWidth >> focusZoom;
         zoomHeight = ccdFrameHeight >> focusZoom;
-        sxReadPixels(camHandle, // cam idx
-                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                     (ccdFrameWidth  - zoomWidth)  / 2, // xoffset
-                     (ccdFrameHeight - zoomHeight) / 2, // yoffset
-                     zoomWidth, // width
-                     zoomHeight, // height
-                     1, // xbin
-                     1, // ybin
-                     (unsigned char *)ccdFrame); //pixbuf
+        sxLatchPixels(camHandles[camSelect], // cam handle
+                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                      SXCCD_IMAGE_HEAD, // main ccd
+                      (ccdFrameWidth  - zoomWidth)  / 2, // xoffset
+                      (ccdFrameHeight - zoomHeight) / 2, // yoffset
+                      zoomWidth, // width
+                      zoomHeight, // height
+                      1, // xbin
+                      1); // ybin
+        pixCount = FRAMEBUF_COUNT(zoomWidth, zoomHeight, 1, 1);
     }
+    sxReadPixels(camHandles[camSelect], // cam handle
+                 ccdFrame, //pixbuf
+                 pixCount); // pix count
     /*
      * Convert 16 bit samples to 24 BPP image
      */
@@ -455,7 +483,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
      * Prep next frame
      */
     if (focusExposure < 1000)
-        sxClearFrame(camHandle, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
     focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)

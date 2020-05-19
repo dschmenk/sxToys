@@ -2,33 +2,63 @@
 #include <string.h>
 #include <unistd.h>
 #include <libusb-1.0/libusb.h>
-#include "sxccd.h"
+#include "../sxccd.h"
 /*
  * Vendor specific control commands.
  */
-#define SX_USB_ECHO                 0
-#define SX_USB_CLEAR_PIXELS         1
-#define SX_USB_READ_PIXELS_DELAYED  2
-#define SX_USB_READ_PIXELS          3
-#define SX_USB_SET_TIMER            4
-#define SX_USB_GET_TIMER            5
-#define SX_USB_RESET                6
-#define SX_USB_SET_CCD              7
-#define SX_USB_GET_CCD              8
-#define SX_USB_SET_GUIDE_PORT       9
-#define SX_USB_WRITE_SERIAL_PORT    10
-#define SX_USB_READ_SERIAL_PORT     11
-#define SX_USB_SET_SERIAL           12
-#define SX_USB_GET_SERIAL           13
-#define SX_USB_CAMERA_MODEL         14
-#define SX_USB_LOAD_EEPROM          15
-/*
- * Caps bit definitions.
- */
-#define SX_USB_CAPS_STAR2K          0x01
-#define SX_USB_CAPS_COMPRESS        0x02
-#define SX_USB_CAPS_EEPROM          0x04
-#define SX_USB_CAPS_GUIDER          0x08
+#define SXUSB_ECHO                  0
+#define SXUSB_CLEAR_PIXELS          1
+#define SXUSB_READ_PIXELS_DELAYED   2
+#define SXUSB_READ_PIXELS           3
+#define SXUSB_SET_TIMER             4
+#define SXUSB_GET_TIMER             5
+#define SXUSB_RESET                 6
+#define SXUSB_SET_CCD               7
+#define SXUSB_GET_CCD               8
+#define SXUSB_SET_GUIDE_PORT        9
+#define SXUSB_WRITE_SERIAL_PORT     10
+#define SXUSB_READ_SERIAL_PORT      11
+#define SXUSB_SET_SERIAL            12
+#define SXUSB_GET_SERIAL            13
+#define SXUSB_CAMERA_MODEL          14
+#define SXUSB_LOAD_EEPROM           15
+#define SXUSB_SET_A2D               16  // Set A2D Configuration registers
+#define SXUSB_RED_A2D               17  // Set A2D Red Offest & Gain registers
+#define SXUSB_READ_PIXELS_GATED     18  // IOE_7 triggers timed exposure
+#define SXUSB_BUILD_NUMBER          19  // Sends firmware build number available from version 1.16
+#define SXUSB_SERIAL_NUMBER         20  // Sends camera serial number available from version 1.23
+#define SXUSB_STOP_STREAMING        22  // Stops streaming video data from the camera (IMX only)
+#define SXUSB_SXIMX_SINGLE_EXP      23  // Single Exposure only (SXIMX only)
+#define SXUSB_STOP_SINGLE_EXP       24  // Stops a single exposure if possible (IMX only)
+#define SXUSB_STREAM_VIDEO          29  // Sends video image data from camera (IMX only)
+// USB commands only useable on cameras with cooler control
+#define SXUSB_COOLER_CONTROL        30  // Sets cooler "set Point" & reports current cooler temperature
+#define SXUSB_COOLER                30
+#define SXUSB_COOLER_TEMPERATURE    31  // Reports cooler temperature
+// USB commands only useable on cameras with shutter control
+// Check "Caps" bits in t_sxccd_params
+#define SXUSB_SHUTTER_CONTROL       32  // Controls shutter & spare cooler MCU port bits
+#define SXUSB_SHUTTER               32
+#define SXUSB_READ_I2CPORT          33  // Returns shutter status  & spare cooler MCU port bits also sets shutter delay period
+// Commands for any recent (2015) camera
+#define SXUSB_COOLER_VERSION        34  // Returns the cooler mcu firmware version
+#define SXUSB_FAN_CTL               35  // Controls the fan
+#define SXUSB_LED_CTL               36  // Controls the led status on IMX
+// USB command to provide further extended capabilities
+#define SXUSB_EXTENDED_CAPS         40  // Returns a DWORD for a further 32 flags
+#define SXUSB_HW_TYPE               41
+#define SXUSB_USER_ID               42  // Reads or Writes a 16bit user ID
+#define SXUSB_FLOOD_CCD             43  // Flood CCD command currently for H21 only
+// USB command for SXIMX camera
+#define WRITE_IMX_REG               50  // Writes a byte to the specified register address
+#define SX_THS_DELAY                51  // Changes THS delay command
+#define SX_MASTER_SLAVE             52  // Switches the camera master/slave mode command
+#define CX3_RESET_EP3               54  // Resets & Aborts EP3 (IMX only)
+#define READ_IMX_REG                55  // Reads a single IMX register (IMX only)
+#define IMX_TEST                    56  // SXIMX Test functions
+#define WRITE_IMX_PARAM             57  // Write an IMX parameter (gain, black level etc)
+#define LIMIT_IMX_PARAM             58  // Reads the upper limit of an IMX parameter (gain, black level etc)
+#define IMX_PATTERN                 59  // Sets the pattern generator pattern for SX294
 /*
  * USB bulk block size to read at a time.
  * Must be multiple of bulk transfer buffer size.
@@ -53,30 +83,30 @@
 /*
  * Vendor and product IDs.
  */
-#define EZUSB_VENDOR_ID     0x0547
-#define EZUSB_PRODUCT_ID    0x2131
-#define EZUSB2_VENDOR_ID    0x04B4
-#define EZUSB2_PRODUCT_ID   0x8613
-#define SX_VENDOR_ID        0x1278
-#define ECHO2_PRODUCT_ID    0x0100
-#define ECHO3_PRODUCT_ID    0x0200
+#define EZUSB_VENDOR_ID             0x0547
+#define EZUSB_PRODUCT_ID            0x2131
+#define EZUSB2_VENDOR_ID            0x04B4
+#define EZUSB2_PRODUCT_ID           0x8613
+#define SX_VENDOR_ID                0x1278
+#define ECHO2_PRODUCT_ID            0x0100
+#define ECHO3_PRODUCT_ID            0x0200
 /*
  * Set and reset 8051 requests.
  */
-#define EZUSB_CPUCS_REG     0x7F92
-#define EZUSB2_CPUCS_REG    0xE600
-#define CPUCS_RESET         0x01
-#define CPUCS_RUN           0x00
+#define EZUSB_CPUCS_REG             0x7F92
+#define EZUSB2_CPUCS_REG            0xE600
+#define CPUCS_RESET                 0x01
+#define CPUCS_RUN                   0x00
 /*
  * Address in 8051 external memory for debug info and CCD parameters.
  * Must use low address alias for EZ-USB
  */
-#define SX_EZUSB_DEBUG_BUF      0x1C80
-#define SX_EZUSB2_DEBUG_BUF     0xE1F0
+#define SX_EZUSB_DEBUG_BUF          0x1C80
+#define SX_EZUSB2_DEBUG_BUF         0xE1F0
 /*
  * EZ-USB code download requests.
  */
-#define EZUSB_FIRMWARE_LOAD 0xA0
+#define EZUSB_FIRMWARE_LOAD         0xA0
 /*
  * EZ-USB download code for each camera. Converted from .HEX file.
  */
@@ -97,7 +127,7 @@ static struct sx_ezusb_download_record sx_ezusb2_code[] =
 /*
  * Max number of cameras supported.
  */
-#define MAX_CAMS 4
+#define MAX_CAMS 20
 /*
  * SX CCD Camera structure.
  */
@@ -106,20 +136,7 @@ static struct sx_cam
     libusb_device_handle *handle;
     int snd_endpoint;
     int rcv_endpoint;
-    unsigned int num;
     unsigned int model;
-    unsigned int guider;
-    unsigned int hfront_porch;
-    unsigned int hback_porch;
-    unsigned int vfront_porch;
-    unsigned int vback_porch;
-    unsigned int width;
-    unsigned int height;
-    unsigned int depth;
-    unsigned int pix_width;
-    unsigned int pix_height;
-    unsigned int ser_ports;
-    unsigned int caps;
 } sx_cams[MAX_CAMS];
 static unsigned int sx_cnt = 0;
 /*
@@ -150,17 +167,17 @@ static int sx_ezusb_download(int idVendor, libusb_device *dev)
     libusb_open(dev, &handle);
     setup_data[0] = CPUCS_RESET;
     if (libusb_control_transfer(handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                EZUSB_FIRMWARE_LOAD,
-                ezusb_cpucs_reg,
-                0,
-                setup_data,
-                1,
-                1000) < 0)
+                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                EZUSB_FIRMWARE_LOAD,
+                                ezusb_cpucs_reg,
+                                0,
+                                setup_data,
+                                1,
+                                1000) < 0)
     {
         printf("sx_ezusb: could not put 8051 into RESET\n");
         libusb_close(handle);
-        return 0;
+        return SX_ERROR;
     }
     //printf("sx_ezusb: RESET 8051\n");
     //printf("sx_ezusb: Downloading %d code records\n", code_rec_count);
@@ -172,17 +189,17 @@ static int sx_ezusb_download(int idVendor, libusb_device *dev)
         j = code_rec[i].len;
         memcpy(setup_data, code_rec[i].data, j);
         if (libusb_control_transfer(handle,
-                    LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                    EZUSB_FIRMWARE_LOAD,
-                    code_rec[i].addr,
-                    0,
-                    setup_data,
-                    j,
-                    1000) < j)
+                                    LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                    EZUSB_FIRMWARE_LOAD,
+                                    code_rec[i].addr,
+                                    0,
+                                    setup_data,
+                                    j,
+                                    1000) < j)
         {
             printf("sx_ezusb: could not download code into 8051\n");
             libusb_close(handle);
-            return 0;
+            return SX_ERROR;
         }
     }
     /*
@@ -190,26 +207,59 @@ static int sx_ezusb_download(int idVendor, libusb_device *dev)
      */
     setup_data[0] = CPUCS_RUN;
     if (libusb_control_transfer(handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                EZUSB_FIRMWARE_LOAD,
-                ezusb_cpucs_reg,
-                0,
-                setup_data,
-                1,
-                1000) < 0)
+                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                EZUSB_FIRMWARE_LOAD,
+                                ezusb_cpucs_reg,
+                                0,
+                                setup_data,
+                                1,
+                                1000) < 0)
     {
         printf("sz_ezusb: could not take 8051 out of RESET\n");
         libusb_close(handle);
-        return 0;
+        return SX_ERROR;
     }
     //printf("sx_ezusb: un-RESET 8051\n");
     libusb_close(handle);
-    return 1;
+    return SX_SUCCESS;
+}
+/*
+ * Get CCD parameters.
+ */
+ULONG sxGetCameraParams(HANDLE sxHandle, USHORT camIndex, t_sxccd_params *params)
+{
+    unsigned char cam_data[32];
+    struct sx_cam *pCam = sxHandle;
+    if (libusb_control_transfer(pCam->handle,
+                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+                                SXUSB_GET_CCD,
+                                0,
+                                camIndex,
+                                cam_data,
+                                17,
+                                1000) < 0)
+    {
+        printf("Could not get CCD parameters\n");
+        return SX_ERROR;
+    }
+    params->hfront_porch     = cam_data[0];
+    params->hback_porch      = cam_data[1];
+    params->vfront_porch     = cam_data[4];
+    params->vback_porch      = cam_data[5];
+    params->width            = cam_data[2]  | (cam_data[3]  << 8);
+    params->height           = cam_data[6]  | (cam_data[7]  << 8);
+    params->bits_per_pixel   = cam_data[14];
+    params->pix_width        =(cam_data[8]  | (cam_data[9]  << 8)) / 256.0;
+    params->pix_height       =(cam_data[10] | (cam_data[11] << 8)) / 256.0;
+    params->num_serial_ports = cam_data[15];
+    params->extra_caps       = cam_data[16];
+    //printf("SX camera width:%d height:%d depth:%d caps:%02X\n", sx_cams[sx_cnt].width, sx_cams[sx_cnt].height, sx_cams[sx_cnt].depth, sx_cams[sx_cnt].caps);
+    return SX_SUCCESS;
 }
 /*
  * Open all SX CCD cameras.
  */
-int sxccd_open(int defmodel)
+int sxOpen(HANDLE *sxHandles)
 {
     int devc, renum, i;
     unsigned char cam_data[32];
@@ -277,13 +327,13 @@ int sxccd_open(int defmodel)
              * Reset camera first.
              */
             if (libusb_control_transfer(sx_cams[sx_cnt].handle,
-                        LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                        SX_USB_RESET,
-                        0,
-                        0,
-                        NULL,
-                        0,
-                        1000) < 0)
+                                        LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                        SXUSB_RESET,
+                                        0,
+                                        0,
+                                        NULL,
+                                        0,
+                                        1000) < 0)
             {
                 printf("Error reseting camera.\n");
                 break;
@@ -292,81 +342,25 @@ int sxccd_open(int defmodel)
              * Read model.
              */
             if (libusb_control_transfer(sx_cams[sx_cnt].handle,
-                        LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-                        SX_USB_CAMERA_MODEL,
-                        0,
-                        0,
-                        cam_data,
-                        2,
-                        1000) < 0)
+                                        LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+                                        SXUSB_CAMERA_MODEL,
+                                        0,
+                                        0,
+                                        cam_data,
+                                        2,
+                                        1000) < 0)
             {
                 printf("Error reading camera model.\n");
                 break;
             }
             else
             {
-                if (cam_data[0] == 0 && cam_data[1] == 0)
-                {
-                    if (!defmodel)
-                        defmodel = SXCCD_MX5;
-                    //printf("Setting camera model to %02X\n", defmodel);
-                    if (libusb_control_transfer(sx_cams[sx_cnt].handle,
-                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                                SX_USB_CAMERA_MODEL,
-                                defmodel,
-                                0,
-                                NULL,
-                                0,
-                                1000) < 0)
-                    {
-                        printf("Error setting camera model.\n");
-                    }
-                    if (libusb_control_transfer(sx_cams[sx_cnt].handle,
-                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-                                SX_USB_CAMERA_MODEL,
-                                0,
-                                0,
-                                cam_data,
-                                2,
-                                1000) < 0)
-                    {
-                          printf("Error reading camera model.\n");
-                    }
-                }
-                sx_cams[sx_cnt].model = cam_data[0];
-                //printf("SX camera model: %02X\n", sx_cams[sx_cnt].model);
-                /*
-                 * Get CCD parameters.
-                 */
-                if (libusb_control_transfer(sx_cams[sx_cnt].handle,
-                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-                                SX_USB_GET_CCD,
-                                0,
-                                0,
-                                cam_data,
-                                17,
-                                1000) < 0)
-                {
-                    //printf("Could not get CCD parameters\n");
-                    break;
-                }
-                sx_cams[sx_cnt].num          = 0;
-                sx_cams[sx_cnt].guider       = 0;
-                sx_cams[sx_cnt].hfront_porch = cam_data[0];
-                sx_cams[sx_cnt].hback_porch  = cam_data[1];
-                sx_cams[sx_cnt].vfront_porch = cam_data[4];
-                sx_cams[sx_cnt].vback_porch  = cam_data[5];
-                sx_cams[sx_cnt].width        = cam_data[2]  | (cam_data[3]  << 8);
-                sx_cams[sx_cnt].height       = cam_data[6]  | (cam_data[7]  << 8);
-                sx_cams[sx_cnt].depth        = cam_data[14];
-                sx_cams[sx_cnt].pix_width    = cam_data[8]  | (cam_data[9]  << 8);
-                sx_cams[sx_cnt].pix_height   = cam_data[10] | (cam_data[11] << 8);
-                sx_cams[sx_cnt].ser_ports    = cam_data[15];
-                sx_cams[sx_cnt].caps         = cam_data[16];
-                //printf("SX camera width:%d height:%d depth:%d caps:%02X\n", sx_cams[sx_cnt].width, sx_cams[sx_cnt].height, sx_cams[sx_cnt].depth, sx_cams[sx_cnt].caps);
+                sx_cams[sx_cnt].model = cam_data[0] | (cam_data[1] << 8);
+                //printf("SX camera model: %04X\n", sx_cams[sx_cnt].model);
+                sxHandles[sx_cnt] = &sx_cams[sx_cnt];
+                sx_cnt++;
             }
             libusb_free_config_descriptor(config);
-            sx_cnt++;
         }
     }
     libusb_free_device_list(devv, 1);
@@ -375,172 +369,87 @@ int sxccd_open(int defmodel)
 /*
  * Close all SX CCD cameras.
  */
-void sxccd_close(void)
+void sxClose(HANDLE sxHandle)
 {
-    while (sx_cnt--)
-        libusb_close(sx_cams[sx_cnt].handle);
-    sx_cnt = 0;
-    libusb_exit(NULL);
+    struct sx_cam *pCam = sxHandle;
+    libusb_close(pCam->handle);
+    if (--sx_cnt == 0)
+        libusb_exit(NULL);
 }
 /*
  * Get camera parameters.
  */
-int sxccd_get_model(unsigned int cam_idx)
+USHORT sxGetCameraModel(HANDLE sxHandle)
 {
-    if (cam_idx >= sx_cnt)
-        return -1;
-    return sx_cams[cam_idx].model;
+    struct sx_cam *pCam = sxHandle;
+    return pCam->model;
 }
-int sxccd_set_model(unsigned int cam_idx, int model)
+ULONG sxSetCameraModel(HANDLE sxHandle, USHORT newmodel)
 {
     unsigned char cam_data[32];
-
-    if (cam_idx >= sx_cnt)
-        return -1;
-    //printf("Setting camera model to %02X\n", model);
-    if (libusb_control_transfer(sx_cams[cam_idx].handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                SX_USB_CAMERA_MODEL,
-                model,
-                0,
-                NULL,
-                0,
-                1000) < 0)
+    struct sx_cam *pCam = sxHandle;
+    //printf("Setting camera model to %02X\n", newmodel);
+    if (libusb_control_transfer(pCam->handle,
+                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                SXUSB_CAMERA_MODEL,
+                                newmodel,
+                                0,
+                                NULL,
+                                0,
+                                1000) < 0)
     {
         printf("Error setting camera model.\n");
+        return SX_ERROR;
     }
-    if (libusb_control_transfer(sx_cams[cam_idx].handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-                SX_USB_CAMERA_MODEL,
-                0,
-                0,
-                cam_data,
-                2,
-                1000) < 0)
+    if (libusb_control_transfer(pCam->handle,
+                                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+                                SXUSB_CAMERA_MODEL,
+                                0,
+                                0,
+                                cam_data,
+                                2,
+                                1000) < 0)
     {
           printf("Error reading camera model.\n");
     }
-    sx_cams[cam_idx].model = cam_data[0];
+    pCam->model = cam_data[0];
     //printf("SX camera model: %02X\n", sx_cams[sx_cnt].model);
-    /*
-     * Get CCD parameters.
-     */
-    if (libusb_control_transfer(sx_cams[cam_idx].handle,
-                    LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-                    SX_USB_GET_CCD,
-                    0,
-                    0,
-                    cam_data,
-                    17,
-                    1000) < 0)
-    {
-        printf("Error reading CCD parameters\n");
-    }
-    else
-    {
-        sx_cams[cam_idx].num          = 0;
-        sx_cams[cam_idx].guider       = 0;
-        sx_cams[cam_idx].hfront_porch = cam_data[0];
-        sx_cams[cam_idx].hback_porch  = cam_data[1];
-        sx_cams[cam_idx].vfront_porch = cam_data[4];
-        sx_cams[cam_idx].vback_porch  = cam_data[5];
-        sx_cams[cam_idx].width        = cam_data[2]  | (cam_data[3]  << 8);
-        sx_cams[cam_idx].height       = cam_data[6]  | (cam_data[7]  << 8);
-        sx_cams[cam_idx].depth        = cam_data[14];
-        sx_cams[cam_idx].pix_width    = cam_data[8]  | (cam_data[9]  << 8);
-        sx_cams[cam_idx].pix_height   = cam_data[10] | (cam_data[11] << 8);
-        sx_cams[cam_idx].ser_ports    = cam_data[15];
-        sx_cams[cam_idx].caps         = cam_data[16];
-        //printf("SX camera width:%d height:%d depth:%d caps:%02X\n", sx_cams[sx_cnt].width, sx_cams[sx_cnt].height, sx_cams[sx_cnt].depth, sx_cams[sx_cnt].caps);
-    }
-     return sx_cams[cam_idx].model;
-}
-int sxccd_get_frame_dimensions(unsigned int cam_idx, unsigned int *width, unsigned int *height, unsigned int *depth)
-{
-    if (cam_idx >= sx_cnt)
-        return -1;
-    *width  = sx_cams[cam_idx].width;
-    *height = sx_cams[cam_idx].height;
-    *depth  = sx_cams[cam_idx].depth;
-    return 0;
-}
-int sxccd_get_pixel_dimensions(unsigned int cam_idx, unsigned int *pixwidth, unsigned int *pixheight)
-{
-    if (cam_idx >= sx_cnt)
-        return -1;
-    *pixwidth  = sx_cams[cam_idx].pix_width;
-    *pixheight = sx_cams[cam_idx].pix_height;
-    return 0;
-}
-int sxccd_get_caps(unsigned int cam_idx, unsigned int *caps, unsigned int *ports)
-{
-    if (cam_idx >= sx_cnt)
-        return -1;
-    *caps  = sx_cams[cam_idx].caps;
-    *ports = sx_cams[cam_idx].ser_ports;
-    return 0;
+    return pCam->model;
 }
 /*
  * Reset camera.
  */
-int sxcd_reset(unsigned int cam_idx)
+LONG sxReset(HANDLE sxHandle)
 {
-    if (cam_idx >= sx_cnt)
-        return -1;
-    return libusb_control_transfer(sx_cams[cam_idx].handle,
-                   LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                   SX_USB_RESET,
-                   0,
-                   0,
-                   NULL,
-                   0,
-                   1000);
+    struct sx_cam *pCam = sxHandle;
+    return libusb_control_transfer(pCam->handle,
+                                   LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                   SXUSB_RESET,
+                                   0,
+                                   0,
+                                   NULL,
+                                   0,
+                                   1000) < 0 ? SX_ERROR : SX_SUCCESS;
 }
-int sxccd_clear_frame(unsigned int cam_idx, unsigned int options)
+LONG sxClearPixels(HANDLE sxHandle, USHORT flags, USHORT camIndex)
 {
-    if (cam_idx >= sx_cnt)
-        return -1;
-#if 0
-    cam_data[USB_REQ_TYPE    ]  = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT;
-    cam_data[USB_REQ         ]  = SX_USB_CLEAR_PIXELS;
-    cam_data[USB_REQ_VALUE_L ]  = options;
-    cam_data[USB_REQ_VALUE_H ]  = options >> 8;
-    cam_data[USB_REQ_INDEX_L ]  = guider;
-    cam_data[USB_REQ_INDEX_H ]  = 0;
-    cam_data[USB_REQ_LENGTH_L]  = 0;
-    cam_data[USB_REQ_LENGTH_H]  = 0;
-    libusb_bulk_transfer(sx_cams[cam_idx].handle,
-             sx_cams[cam_idx].snd_endpoint,
-             cam_data,
-             sizeof(cam_data),
-             &xfer,
-             10000);
-    if (xfer != sizeof(cam_data))
-#else
-    if (libusb_control_transfer(sx_cams[cam_idx].handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                SX_USB_CLEAR_PIXELS,
-                options,
-                sx_cams[cam_idx].guider,
-                NULL,
-                0,
-                1000) < 0)
-#endif
-    {
-        //printf("Error writing READ_CLEAR_PIXELS\n");
-    }
-    return 0;
+    struct sx_cam *pCam = sxHandle;
+    return libusb_control_transfer(pCam->handle,
+                                   LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                   SXUSB_CLEAR_PIXELS,
+                                   flags,
+                                   camIndex,
+                                   NULL,
+                                   0,
+                                   1000) < 0 ? SX_ERROR : SX_SUCCESS;
 }
 /*
- * Read image with short exposure.
+ * Short exposure.
  */
-int sxccd_read_pixels_delayed(unsigned int cam_idx, unsigned int options, unsigned int xoffset, unsigned int yoffset, unsigned int width, unsigned int height, unsigned int xbin, unsigned int ybin, unsigned int msec, unsigned char *pixbuf)
+LONG sxExposePixelsGated(HANDLE sxHandle, USHORT flags, USHORT camIndex, USHORT xoffset, USHORT yoffset, USHORT width, USHORT height, USHORT xbin, USHORT ybin, ULONG msec)
 {
     unsigned char cam_data[22];
-    int xfer, fb_size;
-
-    if (cam_idx >= sx_cnt)
-        return -1;
+    struct sx_cam *pCam = sxHandle;
     cam_data[USB_REQ_DATA + 0]  = xoffset;
     cam_data[USB_REQ_DATA + 1]  = xoffset >> 8;
     cam_data[USB_REQ_DATA + 2]  = yoffset;
@@ -555,60 +464,19 @@ int sxccd_read_pixels_delayed(unsigned int cam_idx, unsigned int options, unsign
     cam_data[USB_REQ_DATA + 11] = msec >> 8;
     cam_data[USB_REQ_DATA + 12] = msec >> 16;
     cam_data[USB_REQ_DATA + 13] = msec >> 24;
-#if 0
-    cam_data[USB_REQ_TYPE    ]  = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT;
-    cam_data[USB_REQ         ]  = SX_USB_READ_PIXELS_DELAYED;
-    cam_data[USB_REQ_VALUE_L ]  = options;
-    cam_data[USB_REQ_VALUE_H ]  = options >> 8;
-    cam_data[USB_REQ_INDEX_L ]  = sx_cams[cam_idx].guider;
-    cam_data[USB_REQ_INDEX_H ]  = 0;
-    cam_data[USB_REQ_LENGTH_L]  = 14;
-    cam_data[USB_REQ_LENGTH_H]  = 0;
-    libusb_bulk_transfer(sx_cams[cam_idx].handle,
-             sx_cams[cam_idx].snd_endpoint,
-             cam_data,
-             sizeof(cam_data),
-             &xfer,
-             10000);
-    if (xfer != sizeof(cam_data))
-#else
-    if (libusb_control_transfer(sx_cams[cam_idx].handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                SX_USB_READ_PIXELS_DELAYED,
-                options,
-                sx_cams[cam_idx].guider,
-                cam_data+USB_REQ_DATA,
-                14,
-                1000) < 0)
-#endif
-    {
-        //printf("Error writing READ_PIXELS_DELAYED\n");
-        return 0;
-    }
-    fb_size = FRAMEBUF_SIZE(width, height, sx_cams[cam_idx].depth, xbin, ybin);
-    libusb_bulk_transfer(sx_cams[cam_idx].handle,
-             sx_cams[cam_idx].rcv_endpoint,
-             pixbuf,
-             fb_size,
-             &xfer,
-             10000);
-    if (xfer != fb_size)
-    {
-        //printf("Error reading %d of %d pixel bytes\n", xfer, fb_size);
-    }
-    return (xfer);
+    return libusb_control_transfer(pCam->handle,
+                                   LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                   SXUSB_READ_PIXELS_GATED,
+                                   flags,
+                                   camIndex,
+                                   cam_data+USB_REQ_DATA,
+                                   14,
+                                   1000) < 0 ? SX_ERROR : SX_SUCCESS;
 }
-/*
- * Read image.
- */
-int sxccd_read_pixels(unsigned int cam_idx, unsigned int options, unsigned int xoffset, unsigned int yoffset, unsigned int width, unsigned int height, unsigned int xbin, unsigned int ybin, unsigned char *pixbuf)
+LONG sxExposePixels(HANDLE sxHandle, USHORT flags, USHORT camIndex, USHORT xoffset, USHORT yoffset, USHORT width, USHORT height, USHORT xbin, USHORT ybin, ULONG msec)
 {
     unsigned char cam_data[22];
-    int xfer, fb_size, err;
-
-    if (cam_idx >= sx_cnt)
-        return -1;
-    options |= SXCCD_EXP_FLAGS_NOWIPE_FRAME|SXCCD_EXP_FLAGS_NOCLEAR_FRAME;
+    struct sx_cam *pCam = sxHandle;
     cam_data[USB_REQ_DATA + 0]  = xoffset;
     cam_data[USB_REQ_DATA + 1]  = xoffset >> 8;
     cam_data[USB_REQ_DATA + 2]  = yoffset;
@@ -619,50 +487,121 @@ int sxccd_read_pixels(unsigned int cam_idx, unsigned int options, unsigned int x
     cam_data[USB_REQ_DATA + 7]  = height >> 8;
     cam_data[USB_REQ_DATA + 8]  = xbin;
     cam_data[USB_REQ_DATA + 9]  = ybin;
-    cam_data[USB_REQ_DATA + 10] = 1;
-    cam_data[USB_REQ_DATA + 11] = 0;
-    cam_data[USB_REQ_DATA + 12] = 0;
-    cam_data[USB_REQ_DATA + 13] = 0;
-#if 0
-    cam_data[USB_REQ_TYPE    ]  = LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT;
-    cam_data[USB_REQ         ]  = SX_USB_READ_PIXELS_DELAYED;
-    cam_data[USB_REQ_VALUE_L ]  = options;
-    cam_data[USB_REQ_VALUE_H ]  = options >> 8;
-    cam_data[USB_REQ_INDEX_L ]  = sx_cams[cam_idx].guider;
-    cam_data[USB_REQ_INDEX_H ]  = 0;
-    cam_data[USB_REQ_LENGTH_L]  = 14;
-    cam_data[USB_REQ_LENGTH_H]  = 0;
-    libusb_bulk_transfer(sx_cams[cam_idx].handle,
-             sx_cams[cam_idx].snd_endpoint,
-             cam_data,
-             sizeof(cam_data),
-             &xfer,
-             10000);
-    if (xfer != sizeof(cam_data))
-#else
-    if ((err=libusb_control_transfer(sx_cams[cam_idx].handle,
-                LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-                SX_USB_READ_PIXELS_DELAYED,
-                options,
-                sx_cams[cam_idx].guider,
-                cam_data+USB_REQ_DATA,
-                14,
-                1000)) < 0)
-#endif
-    {
-        //printf("Error %d writing READ_PIXELS\n", err);
-        return 0;
-    }
-    fb_size = FRAMEBUF_SIZE(width, height, sx_cams[cam_idx].depth, xbin, ybin);
-    libusb_bulk_transfer(sx_cams[cam_idx].handle,
-             sx_cams[cam_idx].rcv_endpoint,
-             pixbuf,
-             fb_size,
-             &xfer,
-             10000);
-    if (xfer != fb_size)
-    {
-        //printf("Error reading %d of %d pixel bytes\n", xfer, fb_size);
-    }
-    return (xfer);
+    cam_data[USB_REQ_DATA + 10] = msec;
+    cam_data[USB_REQ_DATA + 11] = msec >> 8;
+    cam_data[USB_REQ_DATA + 12] = msec >> 16;
+    cam_data[USB_REQ_DATA + 13] = msec >> 24;
+    return libusb_control_transfer(pCam->handle,
+                                   LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                   SXUSB_READ_PIXELS_DELAYED,
+                                   flags,
+                                   camIndex,
+                                   cam_data+USB_REQ_DATA,
+                                   14,
+                                   1000) < 0 ? SX_ERROR : SX_SUCCESS;
+}
+/*
+ * Read image.
+ */
+LONG sxLatchPixels(HANDLE sxHandle, USHORT flags, USHORT camIndex, USHORT xoffset, USHORT yoffset, USHORT width, USHORT height, USHORT xbin, USHORT ybin)
+{
+    unsigned char cam_data[18];
+    struct sx_cam *pCam = sxHandle;
+    //if (!pCam->opened)
+    //    return SX_ERROR;
+    //flags |= SXCCD_EXP_FLAGS_NOWIPE_FRAME|SXCCD_EXP_FLAGS_NOCLEAR_FRAME;
+    cam_data[USB_REQ_DATA + 0]  = xoffset;
+    cam_data[USB_REQ_DATA + 1]  = xoffset >> 8;
+    cam_data[USB_REQ_DATA + 2]  = yoffset;
+    cam_data[USB_REQ_DATA + 3]  = yoffset >> 8;
+    cam_data[USB_REQ_DATA + 4]  = width;
+    cam_data[USB_REQ_DATA + 5]  = width >> 8;
+    cam_data[USB_REQ_DATA + 6]  = height;
+    cam_data[USB_REQ_DATA + 7]  = height >> 8;
+    cam_data[USB_REQ_DATA + 8]  = xbin;
+    cam_data[USB_REQ_DATA + 9]  = ybin;
+    return libusb_control_transfer(pCam->handle,
+                                   LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+                                   SXUSB_READ_PIXELS,
+                                   flags,
+                                   camIndex,
+                                   cam_data+USB_REQ_DATA,
+                                   10,
+                                   1000) < 0 ? 0 : 1;
+}
+LONG sxReadPixels(HANDLE sxHandle, USHORT *pixels, ULONG count)
+{
+    int xfer = 0;
+    struct sx_cam *pCam = sxHandle;
+    libusb_bulk_transfer(pCam->handle,
+                         pCam->rcv_endpoint,
+                         (BYTE *)pixels,
+                         count*2,
+                         &xfer,
+                         10000);
+    return xfer;
+}
+LONG sxSetShutter(HANDLE sxHandle, USHORT state)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxSetTimer(HANDLE sxHandle, ULONG msec)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxGetTimer(HANDLE sxHandle)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxSetSTAR2000(HANDLE sxHandle, BYTE star2k)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxSetSerialPort(HANDLE sxHandle, USHORT portIndex, USHORT property, ULONG value)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+USHORT sxGetSerialPort(HANDLE sxHandle, USHORT portIndex, USHORT property)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxWriteSerialPort(HANDLE sxHandle, USHORT portIndex, USHORT flush, USHORT count, BYTE *data)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxReadSerialPort(HANDLE sxHandle, USHORT portIndex, USHORT count, BYTE *data)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxGetFirmwareVersion(HANDLE sxHandle)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+USHORT sxGetBuildNumber(HANDLE sxHandle)
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxSetCooler(HANDLE sxHandle, UCHAR SetStatus, USHORT SetTemp, UCHAR *RetStatus, USHORT *RetTemp )
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxGetCoolerTemp(HANDLE sxHandle, UCHAR *RetStatus, USHORT *RetTemp )
+{
+    struct sx_cam *pCam = sxHandle;
+    return SX_SUCCESS;
+}
+ULONG sxGetDLLVersion()
+{
+    return 0x140;
 }
