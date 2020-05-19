@@ -1,4 +1,4 @@
-wxSTD_FRAME ICON "sxFocusMSW\sxfocus.ico"
+wxSTD_FRAME ICON "sxTDIMSW\sxtdi.ico"
 
 #include "wx/msw/wx.rc"
 
