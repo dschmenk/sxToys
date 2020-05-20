@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <math.h>
 #include <string.h>
 #ifdef _MSC_VER
@@ -23,9 +22,9 @@
 /*
  * Convert unsigned LE pixels to signed BE pixels.
  */
-static void convert_pixels(uint16_t *src, uint16_t *dst, int offset, int count)
+static void convert_pixels(unsigned short *src, unsigned short *dst, unsigned short offset, int count)
 {
-    int pixel;
+    unsigned short pixel;
 
     while (count--)
     {
@@ -42,7 +41,7 @@ static void convert_pixels(uint16_t *src, uint16_t *dst, int offset, int count)
 int fits_write(char *filename, unsigned char *pixels, int width, int height, int exposure, char *creator, char *camera)
 {
     char      record[FITS_CARD_COUNT][FITS_CARD_SIZE];
-    uint16_t *fits_pixels;
+    unsigned short *fits_pixels;
     int       i, image_size, image_pitch, fd;
 
     /*
@@ -55,7 +54,7 @@ int fits_write(char *filename, unsigned char *pixels, int width, int height, int
      */
     image_pitch = width  * 2;
     image_size  = height * image_pitch;
-    fits_pixels = (uint16_t *)malloc(image_pitch);
+    fits_pixels = (unsigned short *)malloc(image_pitch);
     /*
      * Fill header records.
      */
@@ -93,7 +92,7 @@ int fits_write(char *filename, unsigned char *pixels, int width, int height, int
      */
     for (i = 0; i < height; i++)
     {
-        convert_pixels((uint16_t *)(pixels + image_size - (i+1) * image_pitch), fits_pixels, BZERO, width);
+        convert_pixels((unsigned short *)(pixels + image_size - (i+1) * image_pitch), fits_pixels, BZERO, width);
         write(fd, fits_pixels, image_pitch);
     }
     free(fits_pixels);
