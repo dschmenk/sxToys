@@ -10,6 +10,8 @@
 #define creat _creat
 #define write _write
 #define close _close
+#else
+#include <unistd.h>
 #endif
 #include "fits.h"
 /*
