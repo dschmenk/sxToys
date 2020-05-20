@@ -39,7 +39,11 @@
 #include <wx/numdlg.h>
 #include <wx/filedlg.h>
 #include <wx/cmdline.h>
+#ifdef _MSC_VER
+#include "wintime.h"
+#else
 #include <sys/time.h>
+#endif
 #include "sxtdi.h"
 #define ALIGN_EXP       2000
 #define MAX_WHITE       65535
