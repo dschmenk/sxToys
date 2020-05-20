@@ -6,12 +6,14 @@
 #include <string.h>
 #ifdef _MSC_VER
 #include <io.h>
-#define open _open
+#include <sys/stat.h>
 #define creat _creat
 #define write _write
 #define close _close
+#define PMODE _S_IWRITE
 #else
 #include <unistd.h>
+#define PMODE 0666
 #endif
 #include "fits.h"
 /*
@@ -49,7 +51,7 @@ int fits_write(char *filename, unsigned char *pixels, int width, int height, int
     /*
      * Create file.
      */
-    if ((fd = creat(filename, 0666)) < 0)
+    if ((fd = creat(filename, PMODE)) < 0)
         return fd;
     /*
      * Calculate FITS buffer size
