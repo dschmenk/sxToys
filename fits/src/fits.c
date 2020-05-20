@@ -5,6 +5,13 @@
 #include <unistd.h>
 #include <math.h>
 #include <string.h>
+#ifdef _MSC_VER
+#include <io.h>
+#define open _open
+#define creat _creat
+#define write _write
+#define close _close
+#endif
 #include "fits.h"
 /*
  * World's worst FITS file write routine. Has the advantage of being very small.
