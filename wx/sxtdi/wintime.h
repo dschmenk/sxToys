@@ -14,7 +14,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h> // Windows.h -> WinDef.h defines min() max()
-
+#if _MSC_VER < 1700
+typedef unsigned long long uint64_t;
+#endif
 /*
 	typedef uint16_t WORD ;
 	typedef uint32_t DWORD;
