@@ -2,6 +2,8 @@
 
 The SX USB 1.1 module was used to provide an USB interface to the original parallel port camera interfaces. Although the original firmware provided by Starlight Xpress was functional, it wasn't compatible with the follow-on integrated USB 2.0 cameras. Luckily, the USB 1.1 module's firmware wasn't written in stone, so to speak. It was downloaded from a file included with the SX install. By replacing this firmware file, the USB 1.1 module's personality can be changed, even to be compatible with the newer cameras. I actually prototyped the USB 2.0 camera's firmware on the 1.1 module. By keeping the USB 1.1 module up-to-date with the development of the USB 2.0 cameras, software could seamlessly work on both cameras. I'm making this firmware available now that there isn't any competition with the USB 2.0 cameras. If you have and old USB 1.1 module, then this can breathe a little life back into your camera.
 
+I have successfully upgraded a 32-bit Windows XP machine and a 64-bit Windows 7 machine.
+
 ## Installation
 There are two cases to consider: a fresh install and installation over an existing USB 1.1 driver. If you already have the USB 1.1 driver installed, the you can skip this first part.
 
