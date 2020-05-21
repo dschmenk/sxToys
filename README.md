@@ -33,7 +33,7 @@ If you see bright stars streak and bloom, you now know what it's like to have a 
 
 If you see the frame wash out during the first frame, there is probably too much sky glow. Either wait until the sky darkens or stop the lens down.
 
-You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use the GIMP (gimp.org) which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
+You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use [GIMP](https://gimp.org), the Gnu Image Manipulation Program, which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
 
 Make sure you adjust your computer's power settings so it doesn't go to sleep during scanning.
 
