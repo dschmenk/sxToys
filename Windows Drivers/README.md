@@ -22,7 +22,13 @@ You will find a list of HEX files, one for each camera supported by the USB 1.1 
 
 ### Preparing for USB 2.0 Drivers
 
-Download the USB 2.0 drivers from Starlight Xpress. Navigate to the directory containing the drivers and .INF files. Copy the 'SXVIO_SX_100.inf' file into this directory. Now unplug the USB 1.1 module and plug it back in. After a couple of beeps, you should get the "New Hardware Found" for an ECHO2 device. Use the advanced method of finding a driver and browse to the USB 2.0 directory. It should be able to load the USB 2.0 drivers for the USB 1.1 module.
+#### Windows 7, 8, and 10
+
+Download the latest signed Windows 7, 8, and 10 USB 2.0 drivers from Starlight Xpress. Navigate to the directory containing the drivers. Run the 'Install Drivers.exe' file. Now unplug the USB 1.1 module and plug it back in. The camera should be identified and ready to use.
+
+#### Windows XP
+
+Download the latest Windows XP USB 2.0 drivers from Starlight Xpress. Navigate to the directory containing the drivers and .INF files. Copy the 'SXVIO_SX_100.inf' file into this directory. Now unplug the USB 1.1 module and plug it back in. After a couple of beeps, you should get the "New Hardware Found" for an ECHO2 device. Use the advanced method of finding a driver and browse to the USB 2.0 driver directory. It should be able to load the USB 2.0 drivers for the USB 1.1 module.
 
 ### Use
 The USB 1.1 module can be used with sxToys and any app that has been written to use the USB 2.0 in a generic manner. Understand that this update comes without any warranty or any support from Starlight Xpress. However, to revert to it's previous functionality, just restore the 05472131.HEX.BAK' to 05472131.HEX'.
