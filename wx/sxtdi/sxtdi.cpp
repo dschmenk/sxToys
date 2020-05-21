@@ -244,6 +244,11 @@ int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
     }
     return count;
 }
+void sxRelease(HANDLE hlist[], int count)
+{
+	while (count--)
+		sxClose(hlist[count]);
+}
 /*
  * TDI Scan App class
  */
@@ -548,52 +553,60 @@ bool ScanFrame::ConnectCamera(int index)
 }
 void ScanFrame::OnConnect(wxCommandEvent& event)
 {
-    if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
-    {
-        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
-        return;
-    }
-    wxString CamChoices[8/*camCount*/];
-    for (int i = 0; i < camCount; i++)
-    {
-        int model     = sxGetCameraModel(camHandles[i]);
-        CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
-    }
-    wxSingleChoiceDialog dlg(this,
-                          wxT("Camera:"),
-                          wxT("Connect Camera"),
-                          camCount,
-                          CamChoices);
-    if (dlg.ShowModal() == wxID_OK )
-    {
-        tdiExposure = 0;
-        tdiScanRate = 0.0;
-        ConnectCamera(dlg.GetSelection());
-    }
+ 	if (tdiState == STATE_IDLE)
+	{
+		if (camCount)   sxRelease(camHandles, camCount);
+		if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
+		{
+			wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+			return;
+		}
+		wxString CamChoices[8/*camCount*/];
+		for (int i = 0; i < camCount; i++)
+		{
+			int model     = sxGetCameraModel(camHandles[i]);
+			CamChoices[i] = wxString::Format("%cX-%d", model & SXCCD_INTERLEAVE ? 'M' : 'H', model & 0x3F);
+		}
+		wxSingleChoiceDialog dlg(this,
+							  wxT("Camera:"),
+							  wxT("Connect Camera"),
+							  camCount,
+							  CamChoices);
+		if (dlg.ShowModal() == wxID_OK )
+		{
+			tdiExposure = 0;
+			tdiScanRate = 0.0;
+			ConnectCamera(dlg.GetSelection());
+		}
+	}
 }
 void ScanFrame::OnOverride(wxCommandEvent& event)
 {
 #ifndef _MSC_VER
-    if (tdiTimer.IsRunning())
-        tdiTimer.Stop();
-    if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
-    {
-        wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
-        return;
-    }
-    if (camSelect < 0)
-        camSelect = camCount - 1;
-    wxSingleChoiceDialog dlg(this,
-                          wxT("Camera:"),
-                          wxT("Override Camera Model"),
-                          7,
-                          FixedChoices);
-    if (dlg.ShowModal() == wxID_OK )
-    {
-        camUSBType = FixedModels[dlg.GetSelection()];
-        sxSetCameraModel(camHandles[camSelect], camUSBType);
-        ConnectCamera(camSelect);
-    }
+ 	if (tdiState == STATE_IDLE)
+	{
+		if (tdiTimer.IsRunning())
+			tdiTimer.Stop();
+		if (camCount)   sxRelease(camHandles, camCount);
+		if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
+		{
+			wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
+			return;
+		}
+		if (camSelect < 0)
+			camSelect = camCount - 1;
+		wxSingleChoiceDialog dlg(this,
+							  wxT("Camera:"),
+							  wxT("Override Camera Model"),
+							  7,
+							  FixedChoices);
+		if (dlg.ShowModal() == wxID_OK )
+		{
+			camUSBType = FixedModels[dlg.GetSelection()];
+			sxSetCameraModel(camHandles[camSelect], camUSBType);
+			ConnectCamera(camSelect);
+		}
+	}
 #endif
 }
 void ScanFrame::OnBackground(wxEraseEvent& event)
@@ -781,14 +794,17 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
 }
 void ScanFrame::GetDuration()
 {
-    wxNumberEntryDialog dlg(this,
-                            wxT(""),
-                            wxT("Hours:"),
-                            wxT("Scan Duration"),
-                            6, 1, 12);
-    if (dlg.ShowModal() != wxID_OK)
-        return;
-    tdiMinutes = dlg.GetValue() * 60;
+ 	if (tdiState == STATE_IDLE)
+	{
+		wxNumberEntryDialog dlg(this,
+								wxT(""),
+								wxT("Hours:"),
+								wxT("Scan Duration"),
+								6, 1, 12);
+		if (dlg.ShowModal() != wxID_OK)
+			return;
+		tdiMinutes = dlg.GetValue() * 60;
+	}
 }
 void ScanFrame::OnDuration(wxCommandEvent& event)
 {
@@ -994,6 +1010,11 @@ void ScanFrame::OnExit(wxCommandEvent& event)
         scanImage = NULL;
     }
     Close(true);
+	if (camCount)
+	{
+		sxRelease(camHandles, camCount);
+		camCount = 0;
+	}
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {

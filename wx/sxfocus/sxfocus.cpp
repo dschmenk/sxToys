@@ -116,6 +116,11 @@ int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
     }
     return count;
 }
+void sxRelease(HANDLE hlist[], int count)
+{
+	while (count--)
+		sxClose(hlist[count]);
+}
 class FocusApp : public wxApp
 {
 public:
@@ -368,6 +373,7 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
+	if (camCount)   sxRelease(camHandles, camCount);
     if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
@@ -394,6 +400,7 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
 #ifndef _MSC_VER
     if (focusTimer.IsRunning())
         focusTimer.Stop();
+	if (camCount)   sxRelease(camHandles, camCount);
     if ((camCount = sxProbe(camHandles, camParams, camUSBType)) == 0)
     {
         wxMessageBox("No Cameras Found", "Connect Error", wxOK | wxICON_INFORMATION);
@@ -592,6 +599,11 @@ void FocusFrame::OnExposureReset(wxCommandEvent& event)
 void FocusFrame::OnExit(wxCommandEvent& event)
 {
     Close(true);
+	if (camCount)
+	{
+		sxRelease(camHandles, camCount);
+		camCount = 0;
+	}
 }
 void FocusFrame::OnAbout(wxCommandEvent& event)
 {
