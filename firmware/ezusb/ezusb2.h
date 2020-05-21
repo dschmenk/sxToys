@@ -1,0 +1,471 @@
+/***************************************************************************\
+    
+    Copyright (c) 2002 David Schmenk
+    
+    All rights reserved.
+    
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, and/or sell copies of the Software, and to permit persons
+    to whom the Software is furnished to do so, provided that the above
+    copyright notice(s) and this permission notice appear in all copies of
+    the Software and that both the above copyright notice(s) and this
+    permission notice appear in supporting documentation.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+    OF THIRD PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+    HOLDERS INCLUDED IN THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL
+    INDIRECT OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING
+    FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+    NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+    WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+    
+    Except as contained in this notice, the name of a copyright holder
+    shall not be used in advertising or otherwise to promote the sale, use
+    or other dealings in this Software without prior written authorization
+    of the copyright holder.
+    
+\***************************************************************************/
+
+/*
+ * Definitions for EZ-USB FX2
+ */
+#ifndef __EZUSB2_H__
+#define SBIT(addr, name)    sbit at addr name
+#define SFR(addr, name)     sfr at addr name
+#define XREG(addr, name)    xdata at addr volatile unsigned char name
+/*
+ * IRQ vectors.
+ */
+#define WU_VECTOR   6
+#define SI1_VECTOR  7
+/*
+ * BIT registers.
+ */
+/* IE */
+SBIT(0xAE, ES1);
+/* EICON */
+SBIT(0xD8, EICON_0);
+SBIT(0xD9, EICON_1);
+SBIT(0xDA, EICON_2);
+SBIT(0xDB, EICON_3);
+SBIT(0xDC, EICON_4);
+SBIT(0xDD, EICON_5);
+SBIT(0xDE, EICON_6);
+SBIT(0xDF, EICON_7);
+/* EIE */
+SBIT(0xE8, EIE_0);
+SBIT(0xE9, EIE_1);
+SBIT(0xEA, EIE_2);
+SBIT(0xEB, EIE_3);
+SBIT(0xEC, EIE_4);
+SBIT(0xED, EIE_5);
+SBIT(0xEE, EIE_6);
+SBIT(0xEF, EIE_7);
+/* EIP */
+SBIT(0xF8, EIP_0);
+SBIT(0xF9, EIP_1);
+SBIT(0xFA, EIP_2);
+SBIT(0xFB, EIP_3);
+SBIT(0xFC, EIP_4);
+SBIT(0xFD, EIP_5);
+SBIT(0xFE, EIP_6);
+SBIT(0xFF, EIP_7);
+/* SCON1 */
+SBIT(0xC0, RI1);
+SBIT(0xC1, TI1);
+/* IOA */
+SBIT(0x80, IOA_0);
+SBIT(0x81, IOA_1);
+SBIT(0x82, IOA_2);
+SBIT(0x83, IOA_3);
+SBIT(0x84, IOA_4);
+SBIT(0x85, IOA_5);
+SBIT(0x86, IOA_6);
+SBIT(0x87, IOA_7);
+/* IOB */
+SBIT(0x90, IOB_0);
+SBIT(0x91, IOB_1);
+SBIT(0x92, IOB_2);
+SBIT(0x93, IOB_3);
+SBIT(0x94, IOB_4);
+SBIT(0x95, IOB_5);
+SBIT(0x96, IOB_6);
+SBIT(0x97, IOB_7);
+/* IOC */
+SBIT(0xA0, IOC_0);
+SBIT(0xA1, IOC_1);
+SBIT(0xA2, IOC_2);
+SBIT(0xA3, IOC_3);
+SBIT(0xA4, IOC_4);
+SBIT(0xA5, IOC_5);
+SBIT(0xA6, IOC_6);
+SBIT(0xA7, IOC_7);
+/* IOD */
+SBIT(0xB0, IOD_0);
+SBIT(0xB1, IOD_1);
+SBIT(0xB2, IOD_2);
+SBIT(0xB3, IOD_3);
+SBIT(0xB4, IOD_4);
+SBIT(0xB5, IOD_5);
+SBIT(0xB6, IOD_6);
+SBIT(0xB7, IOD_7);
+/*
+ * BYTE registers.
+ */
+SFR(0x80, IOA);         // IO port A
+SFR(0x82, DPL0);        // DPTR0
+SFR(0x83, DPH0); 
+SFR(0x84, DPL1);        // DPTR1
+SFR(0x85, DPH1); 
+SFR(0x86, DPSEL);       // DPTR select
+SFR(0x8E, CKCON); 
+SFR(0x8F, SPCFNC); 
+SFR(0x90, IOB);         // IO port B
+SFR(0x91, EXIF);        // External interrupt flags
+SFR(0x92, MPAGE);       // Page register, used with MOVX @Ri
+SFR(0x9A, AUTOPTRH1);   // Auto data pointers
+SFR(0x9B, AUTOPTRL1); 
+SFR(0x9C, AUTODAT1); 
+SFR(0x9D, AUTOPTRH2); 
+SFR(0x9E, AUTOPTRL2); 
+SFR(0x9F, AUTODAT2);
+SFR(0xA0, IOC);         // IO port C
+SFR(0xA1, INT2CLR);
+SFR(0xA2, INT4CLR);
+SFR(0xAA, EP468STAT);   // Endpoint 4, 6, & 8 status
+SFR(0xAB, EP24FIFOFLGS);
+SFR(0xAC, EP68FIFOFLGS);
+SFR(0xAF, AUTOPTRSETUP);
+SFR(0xB0, IOD);         // IO port D
+SFR(0xB1, IOE);         // IO port E
+SFR(0xB2, OEA);         // Output enable port A
+SFR(0xB3, OEB);         // Output enable port B
+SFR(0xB4, OEC);         // Output enable port C
+SFR(0xB5, OED);         // Output enable port D
+SFR(0xB6, OEE);         // Output enable port E
+SFR(0xBA, EP01STAT);    // Endpoint 0 & 1 status
+SFR(0xBB, GPIFTRIG);    // GPIF trigger
+SFR(0xBD, GPIFSGLDATH); // GPIF single data xfer
+SFR(0xBE, GPIFSGLDATLX);
+SFR(0xBF, GPIFSGLDATLNOX);
+SFR(0xC0, SCON1);
+SFR(0xC1, SBUF1);
+SFR(0xC8, T2CON);
+SFR(0xCA, R2CAPL);
+SFR(0xCB, R2CAPH);
+SFR(0xCC, TL2);
+SFR(0xCD, TH2);
+SFR(0xD8, EICON);
+SFR(0xE8, EIE);
+SFR(0xF8, EIP);
+/*
+ * CPU control and status.
+ */
+#define CPUCS_PORTCSTB      0x20
+#define CPUCS_CLKSPD1       0x10
+#define CPUCS_CLKSPD0       0x08
+#define CPUCS_CLKSPD12MHZ   0x00
+#define CPUCS_CLKSPD24MHZ   0x08
+#define CPUCS_CLKSPD48MHZ   0x10
+#define CPUCS_CLKINV        0x04
+#define CPUCS_CLKOE         0x02
+#define CPUCS_RESET         0x01
+XREG(0xE600, CPUCS);
+/*
+ * I/O port configuration.
+ */
+#define IFCONFIG_IFCLKSRC_INT   0x80
+#define IFCONFIG_IFCLKSRC_EXT   0x00
+#define IFCONFIG_48MHZ          0x40
+#define IFCONFIG_30MHZ          0x00
+#define IFCONFIG_CLKOE          0x20
+XREG(0xE601, IFCONFIG);
+/*
+ * Slave FIFO flags.
+ */
+XREG(0xE602, FIFO_PINFLAGSAB);
+XREG(0xE603, FIFO_PINFLAGSCD);
+XREG(0xE604, FIFO_RESET);
+/*
+ * Breakpoint address.
+ */
+XREG(0xE605, BP_CTRL);
+XREG(0xE606, BP_ADDRH);
+XREG(0xE607, BP_ADDRL);
+/*
+ * UART control.
+ */
+XREG(0xE608, UART230);
+/*
+ * Slave FIFO pin polarity.
+ */
+XREG(0xE609, FIFO_PINPOLAR);
+/*
+ * Chip revision ID.
+ */
+XREG(0xE60A, REVID);
+/*
+ * GPIF data hold time.
+ */
+XREG(0xE60C, GPIF_HOLDTIME);
+/*
+ * Endpoint configuration.
+ */
+#define USB_EPCFG_VALID     0x80
+#define USB_EPCFG_DIR_OUT   0x00
+#define USB_EPCFG_DIR_IN    0x40
+#define USB_EPCFG_TYPE_ISO  0x10
+#define USB_EPCFG_TYPE_BLK  0x20
+#define USB_EPCFG_TYPE_INT  0x30
+#define USB_EPCFG_SIZE_512  0x00
+#define USB_EPCFG_SIZE_1K   0x08
+#define USB_EPCFG_BUF_DBL   0x02
+#define USB_EPCFG_BUF_TRI   0x03
+#define USB_EPCFG_BUF_QUAD  0x00
+XREG(0xE610, USB_OUT1CFG);
+XREG(0xE611, USB_IN1CFG);
+XREG(0xE612, USB_EP2CFG);
+XREG(0xE613, USB_EP4CFG);
+XREG(0xE614, USB_EP6CFG);
+/*
+ * FIFO configuration.
+ */
+#define USB_EPFIFOCFG_INFM1 0x40
+#define USB_EPFIFOCFG_OEP1  0x20
+#define USB_EPFIFOCFG_AUTOOUT   0x10
+#define USB_EPFIFOCFG_AUTOIN    0x08
+#define USB_EPFIFOCFG_ZEROLENIN 0x04
+#define USB_EPFIFOCFG_WORDWIDE  0x01
+XREG(0xE615, USB_EP8CFG);
+XREG(0xE618, USB_EP2FIFOCFG);
+XREG(0xE619, USB_EP4FIFOCFG);
+XREG(0xE61A, USB_EP6FIFOCFG);
+XREG(0xE61B, USB_EP8FIFOCFG);
+/*
+ * FIFO auto in-length.
+ */
+XREG(0xE620, USB_EP2AUTOINLENH);
+XREG(0xE621, USB_EP2AUTOINLENL);
+XREG(0xE622, USB_EP4AUTOINLENH);
+XREG(0xE623, USB_EP4AUTOINLENL);
+XREG(0xE624, USB_EP6AUTOINLENH);
+XREG(0xE625, USB_EP6AUTOINLENL);
+XREG(0xE626, USB_EP8AUTOINLENH);
+XREG(0xE627, USB_EP8AUTOINLENL);
+/*
+ * ISO IN packets.
+ */
+XREG(0xE640, USB_EP2ISOINPKTS);
+XREG(0xE641, USB_EP4ISOINPKTS);
+XREG(0xE642, USB_EP6ISOINPKTS);
+XREG(0xE643, USB_EP8ISOINPKTS);
+XREG(0xE648, USB_INPKTEND);
+/*
+ * USB endpoint interrupt enable/req.
+ */
+XREG(0xE650, USB_EP2FIFOIE);
+XREG(0xE651, USB_EP2FIFOIRQ);
+XREG(0xE652, USB_EP4FIFOIE);
+XREG(0xE653, USB_EP4FIFOIRQ);
+XREG(0xE654, USB_EP6FIFOIE);
+XREG(0xE655, USB_EP6FIFOIRQ);
+XREG(0xE656, USB_EP8FIFOIE);
+XREG(0xE657, USB_EP8FIFOIRQ);
+/*
+ * USB interrupt enable/req.
+ */
+XREG(0xE658, USB_IBNIE);
+XREG(0xE659, USB_IBNIRQ);
+XREG(0xE65A, USB_NAKIE);
+XREG(0xE65B, USB_NAKIRQ);
+XREG(0xE65C, USB_IE);
+XREG(0xE65D, USB_IRQ);
+XREG(0xE65E, USB_EPIE);
+XREG(0xE65F, USB_EPIRQ);
+XREG(0xE660, GPIF_IE);
+XREG(0xE661, GPIF_IRQ);
+XREG(0xE662, USB_ERRIE);
+XREG(0xE663, USB_ERRIRQ);
+XREG(0xE664, USB_ERRCNTLIM);
+XREG(0xE665, USB_CLRERRCNT);
+XREG(0xE666, USB_INT2IVEC);
+XREG(0xE667, USB_INT4IVEC);
+XREG(0xE668, USB_INTSETUP);
+/*
+ * I/O port control.
+ */
+#define PORT_CFG_IO         0x00
+XREG(0xE670, PORTA_CFG);
+XREG(0xE671, PORTC_CFG);
+XREG(0xE672, PORTE_CFG);
+/*
+ * I2C control, status and data.
+ */
+#define I2C_CS_START        0x80
+#define I2C_CS_STOP         0x40
+#define I2C_CS_LASTRD       0x20
+#define I2C_CS_ID1          0x10
+#define I2C_CS_ID0          0x08
+#define I2C_CS_BERR         0x04
+#define I2C_CS_ACK          0x02
+#define I2C_CS_DONE         0x01
+#define I2C_MODE_STOPIE     0x02
+#define I2C_MODE_400KHZ     0x01
+XREG(0xE678, I2C_CS);
+XREG(0xE679, I2C_DAT);
+XREG(0xE67A, I2C_MODE);
+/*
+ * External auto pointer.
+ */
+XREG(0xE67B, XAUTODATA1);
+XREG(0xE67C, XAUTODATA2);
+/*
+ * UDMA CRC
+ */
+XREG(0xE67D, USB_UDMACRCH);
+XREG(0xE67E, USB_UDMACRCL);
+XREG(0xE67F, USB_UDMAQUAL);
+/*
+ * USB control and status.
+ */
+#define USBCS_HSM           0x80
+#define USBCS_DISCON        0x08
+#define USBCS_NOSYNSOF      0x04
+#define USBCS_RENUM         0x02
+#define USBCS_SIGRSUME      0x01
+#define USB_SUSPEND_DOIT    0xFF
+XREG(0xE680, USBCS);
+XREG(0xE681, USB_SUSPEND);
+XREG(0xE682, USB_WAKEUPCS);
+XREG(0xE683, USB_TOGCTL);
+XREG(0xE684, USB_FRAMEL);
+XREG(0xE685, USB_FRAMEH);
+XREG(0xE686, USB_MICROFRAME);
+XREG(0xE687, USB_FNADDR);
+/*
+ * Endpoint 0-7 control, status and byte counts.
+ */
+#define USB_CS0OUTBSY       0x08
+#define USB_CS0INBSY        0x04
+#define USB_CS0HSNAK        0x02
+#define USB_CS0STALL        0x01
+#define USB_CSINBSY         0x02
+#define USB_CSINSTL         0x01
+#define USB_CSOUTBSY        0x02
+#define USB_CSOUTSTL        0x01
+XREG(0xE68A, USB_EP0BCH);
+XREG(0xE68B, USB_EP0BCL);
+XREG(0xE68D, USB_OUT1BC);
+XREG(0xE68F, USB_IN1BC);
+XREG(0xE690, USB_EP2BCH);
+XREG(0xE691, USB_EP2BCL);
+XREG(0xE694, USB_EP4BCH);
+XREG(0xE695, USB_EP4BCL);
+XREG(0xE698, USB_EP6BCH);
+XREG(0xE699, USB_EP6BCL);
+XREG(0xE69C, USB_EP8BCH);
+XREG(0xE69D, USB_EP8BCL);
+XREG(0xE6A0, USB_EP0CS);
+XREG(0xE6A1, USB_OUT1CS);
+XREG(0xE6A2, USB_IN1CS);
+XREG(0xE6A3, USB_EP2CS);
+XREG(0xE6A4, USB_EP4CS);
+XREG(0xE6A5, USB_EP6CS);
+XREG(0xE6A6, USB_EP8CS);
+XREG(0xE6A7, USB_EP2FIFOFLGS);
+XREG(0xE6A8, USB_EP4FIFOFLGS);
+XREG(0xE6A9, USB_EP6FIFOFLGS);
+XREG(0xE6AA, USB_EP8FIFOFLGS);
+XREG(0xE6AB, USB_EP2FIFOBCL);
+XREG(0xE6AC, USB_EP2FIFOBCH);
+XREG(0xE6AD, USB_EP4FIFOBCL);
+XREG(0xE6AE, USB_EP4FIFOBCH);
+XREG(0xE6AF, USB_EP6FIFOBCL);
+XREG(0xE6B0, USB_EP6FIFOBCH);
+XREG(0xE6B1, USB_EP8FIFOBCL);
+XREG(0xE6B2, USB_EP8FIFOBCH);
+/*
+ * Setup data pointer.
+ */
+#define USB_SUDPTRCTL_LENOVERRIDE  0x00
+XREG(0xE6B3, USB_SUDPTRH);
+XREG(0xE6B4, USB_SUDPTRL);
+XREG(0xE6B5, USB_SUDPTRCTL);
+/*
+ * Setup data buffer. 
+ */
+XREG(0xE6B8, USB_SETUPDAT[8]);
+/*
+ * GPIF
+ */
+XREG(0xE6C0, GPIF_WSELECT);
+XREG(0xE6C1, GPIF_IDLCS);
+XREG(0xE6C2, GPIF_IDLCTL);
+XREG(0xE6C3, GPIF_CTLCFG);
+XREG(0xE6C4, GPIF_ADRH);
+XREG(0xE6C5, GPIF_ADRL);
+/*
+ * Flow state.
+ */
+XREG(0xE6C6, GPIF_FLOWSTATE);
+XREG(0xE6C7, GPIF_FLOWLOGIC);
+XREG(0xE6C8, GPIF_FLOWQ0CTL);
+XREG(0xE6C9, GPIF_FLOWQ1CTL);
+XREG(0xE6CA, GPIF_FLOWHOLDOFF);
+XREG(0xE6CB, GPIF_FLOWSTB);
+XREG(0xE6CC, GPIF_FLOWSTBEDGE);
+XREG(0xE6CD, GPIF_FLOWSTBPERIOD);
+/*
+ * GPIF Endpoint transactions.
+ */
+XREG(0xE6D0, GPIF_EP2TCH);
+XREG(0xE6D1, GPIF_EP2TCL);
+XREG(0xE6D2, GPIF_EP2FLGSEL);
+XREG(0xE6D3, GPIF_EP2PFSTOP);
+XREG(0xE6D4, GPIF_EP2TRIG);
+XREG(0xE6D8, GPIF_EP4TCH);
+XREG(0xE6D9, GPIF_EP4TCL);
+XREG(0xE6DA, GPIF_EP4FLGSEL);
+XREG(0xE6DB, GPIF_EP4PFSTOP);
+XREG(0xE6DC, GPIF_EP4TRIG);
+XREG(0xE6E0, GPIF_EP6TCH);
+XREG(0xE6E1, GPIF_EP6TCL);
+XREG(0xE6E2, GPIF_EP6FLGSEL);
+XREG(0xE6E3, GPIF_EP6PFSTOP);
+XREG(0xE6E4, GPIF_EP6TRIG);
+XREG(0xE6E8, GPIF_EP8TCH);
+XREG(0xE6E9, GPIF_EP8TCL);
+XREG(0xE6EA, GPIF_EP8FLGSEL);
+XREG(0xE6EB, GPIF_EP8PFSTOP);
+XREG(0xE6EC, GPIF_EP8TRIG);
+XREG(0xE6F0, GPIF_XSGLDATH); // GPIF single data xfer
+XREG(0xE6F1, GPIF_XSGLDATLX);
+XREG(0xE6F2, GPIF_XSGLDATLNOX);
+XREG(0xE6F3, GPIF_READYCFG);
+XREG(0xE6F4, GPIF_READYSTAT);
+XREG(0xE6F5, GPIF_ABORT);
+/*
+ * GPIF waveform data buffer.
+ */
+XREG(0xE400, GPIF_WAVEDATA[128]);
+/*
+ * USB data buffers.
+ */
+#define USB_BUF_SIZE    64
+#define USB2_BLK_BUF_SIZE    512
+#define USB2_ISO_BUF_SIZE    1024
+XREG(0xE740, USB_EP0BUF[USB_BUF_SIZE]);
+XREG(0xE780, USB_OUT1BUF[USB_BUF_SIZE]);
+XREG(0xE7C0, USB_IN1BUF[USB_BUF_SIZE]);
+XREG(0xF000, USB_EP2BUF[USB2_ISO_BUF_SIZE]);
+XREG(0xF400, USB_EP4BUF[USB2_BLK_BUF_SIZE]);
+XREG(0xF800, USB_EP6BUF[USB2_ISO_BUF_SIZE]);
+XREG(0xFC00, USB_EP8BUF[USB2_BLK_BUF_SIZE]);
+
+#endif // __EZUSB2_H__
+

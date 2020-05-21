@@ -1,0 +1,70 @@
+[Version]
+Signature="$CHICAGO$"
+Class=BlockIOClass
+
+
+ClassGuid={606377C1-2270-11d4-BFD8-00207812F5D5}
+
+Provider=%USBDbyE%
+
+[Manufacturer]
+%USBDbyE%=USBDbyE
+
+[ClassInstall32]
+Addreg=BlockIOClassAddReg
+
+[DestinationDirs]
+DefaultDestDir = 12	;Drivers folder
+
+[SourceDisksFiles]
+SXVIO.sys=1
+generic.sys=1
+
+[SourceDisksNames]
+1=%INSTDISK%,,,
+2= 12
+
+[USBDbyE]
+%USB\VID_1278&PID_0100.DeviceDesc%=BlockIO,USB\VID_1278&PID_0100  
+
+;------------------------------------------------------------------------------
+;  Windows 2000 Sections
+;------------------------------------------------------------------------------
+
+[BlockIO.NT]
+CopyFiles=BlockIOCopyFiles
+
+[BlockIOCopyFiles]
+SXVIO.sys,,,2
+generic.sys,,,2
+
+[BlockIO.NT.Services]
+AddService=SXVIO,2,BlockIOService
+
+[BlockIOService]
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary= %12%\SXVIO.sys
+
+
+;------------------------------------------------------------------------------
+;  Windows 98 Sections
+;------------------------------------------------------------------------------
+
+[BlockIO]
+AddReg=BlockIOAddReg
+CopyFiles=BlockIOCopyFiles
+
+[BlockIOAddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,SXVIO.sys
+						
+;------------------------------------------------------------------------------
+;  String Definitions
+;------------------------------------------------------------------------------
+
+[Strings]
+USBDbyE="Starlight Xpress Ltd"
+USB\VID_1278&PID_0100.DeviceDesc="Starlight Xpress USB 1.1 Camera Driver" 
+
