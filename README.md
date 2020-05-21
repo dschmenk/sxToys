@@ -29,6 +29,8 @@ If you see vertical streaks instead of point stars, you aren't aligned along the
 
 If you see crescents or diagonals, then you have a combination of the above two.
 
+If you see bright stars streak and bloom, you now know what it's like to have a CCD chip without anti-blooming. While it is true the Sony CCDs have circuitry to keep blooming down when transferring a single image frame to the interline transfer registers, it doesn't help the interline registers from getting overloaded when continuously transferring charge for every row of pixels in the CCD. You can try stopping down the lens to reduce the bloom effect but also reduce sensitivity. Y binning can be a compromise between the two. Experimentation is half the fun.
+
 If you see the frame wash out during the first frame, there is probably too much sky glow. Either wait until the sky darkens or stop the lens down.
 
 You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use the GIMP (gimp.org) which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
