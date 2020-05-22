@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=0.1
+Name=sxTDI
+GenericName=SX Camera Drift Scanning
+Comment=Time Delay Integration for Starlight Xpress cameras
+Type=Application
+Exec=sxtdi
+Icon=sxtdi
+MimeType=
+Categories=Education;Science;Astronomy;
+Keywords=FITS;Astronomy;Imaging;
