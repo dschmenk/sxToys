@@ -1,8 +1,3 @@
-clean:
-    -rmdir /s /q sxToys-Win32
-    cd sxfocus && $(MAKE) /f makefile.vc BUILD=release clean
-    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release clean
-
 all:
     cd wxWidgets\build\msw && $(MAKE) /f makefile.vc BUILD=release
     cd sxfocus && $(MAKE) /f makefile.vc BUILD=release
@@ -12,3 +7,8 @@ all:
     copy sxfocus\vc_mswu\sxfocus.exe sxToys-Win32
     copy sxtdi\vc_mswu\sxtdi.exe sxToys-Win32
     copy ..\libsxccd\sxccd.dll sxToys-Win32
+
+clean:
+    -rmdir /s /q sxToys-Win32
+    cd sxfocus && $(MAKE) /f makefile.vc BUILD=release clean
+    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release clean
