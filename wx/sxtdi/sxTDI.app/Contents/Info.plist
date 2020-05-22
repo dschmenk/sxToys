@@ -7,13 +7,13 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleIdentifier</key>
-	<string>net.schmenk-is-a-geek.sxfocus</string>
+	<string>net.schmenk-is-a-geek.sxtdi/string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>
 	<string>sxtdi</string>
 	<key>CFBundleIconFile</key>
-	<string>sxtdi.icns</string>
+	<string>sxTDI.icns</string>
 	<key>CFBundleName</key>
 	<string>sxTDI</string>
 	<key>CFBundlePackageType</key>
@@ -21,13 +21,13 @@
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>3.0.5</string>
+	<string>0.1</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>0.1</string>
 	<key>CFBundleGetInfoString</key>
-	<string>sxTDI version 0.1.0, (c) 2003-2020 David Schmenk</string>
+	<string>sxTDI version 0.1, (c) 2003-2020 David Schmenk</string>
 	<key>CFBundleLongVersionString</key>
-	<string>0.1.0, (c) 2003-2020 David Schmenk</string>
+	<string>0.1, (c) 2003-2020 David Schmenk</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright 2003-2020 David Schmenk</string>
 	<key>LSRequiresCarbon</key>
@@ -37,7 +37,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>external-accessory</string>
-		<string>processing</string>
 	</array>
 </dict>
 </plist>
