@@ -8,6 +8,7 @@ all:
 	$(MAKE) -C sxtdi
 
 clean:
+	-rm -rf sxToys-MacOS
 	$(MAKE) -C sxfocus clean
 	$(MAKE) -C sxtdi clean
 
