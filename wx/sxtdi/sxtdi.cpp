@@ -772,6 +772,7 @@ void ScanFrame::DoTDI()
     {
         tdiTimer.Stop();
         tdiState = STATE_IDLE;
+        SetTitle(wxT("SX TDI"));
         if (autonomous)
         {
             char filename[255];
