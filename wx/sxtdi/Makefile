@@ -21,6 +21,12 @@ clean:
 	-rm sxtdi *.o
 	-rm sxTDI.app/Contents/MacOS/sxtdi
 
+install: sxtdi
+	$(MAKE) -C ../../libsxccd/ install
+	cp sxtdi /usr/local/bin
+	cp share/sxtdi.desktop /usr/share/applications/
+	cp share/sxtdi.png /usr/share/pixmaps
+
 bundle: sxtdi
 	-mkdir sxTDI.app/Contents/MacOS
 	cp sxtdi sxTDI.app/Contents/MacOS
