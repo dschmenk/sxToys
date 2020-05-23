@@ -873,35 +873,43 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 void ScanFrame::StartTDI()
 {
     int binExposure;
-    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-        return;
-    if (tdiExposure == 0)
+    if (tdiState == STATE_ALIGNING)
     {
-        wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
-        return;
+        tdiTimer.Stop();
+        tdiState = STATE_IDLE;
     }
-    if (tdiMinutes == 0)
+    if (tdiState == STATE_IDLE && ccdModel)
     {
-        GetDuration();
-        if (tdiMinutes == 0)
+        if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
             return;
+        if (tdiExposure == 0)
+        {
+            wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
+            return;
+        }
+        if (tdiMinutes == 0)
+        {
+            GetDuration();
+            if (tdiMinutes == 0)
+                return;
+        }
+        if (scanImage)
+            delete scanImage;
+        ccdBinWidth  = ccdFrameWidth  / ccdBinX;
+        ccdBinHeight = ccdFrameHeight / ccdBinY;
+        scanImage    = new wxImage(ccdBinHeight, ccdBinWidth);
+        binExposure  = tdiExposure * ccdBinY;
+        tdiLength    = tdiMinutes * 60000 / binExposure;
+        if (tdiLength < ccdBinHeight)
+            tdiLength = ccdBinHeight;
+        tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
+        memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
+        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        tdiTimer.Start(binExposure);
+        tdiFileSaved = false;
+        tdiRow       = 0;
+        tdiState     = STATE_SCANNING;
     }
-    if (scanImage)
-        delete scanImage;
-    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
-    ccdBinHeight = ccdFrameHeight / ccdBinY;
-    scanImage    = new wxImage(ccdBinHeight, ccdBinWidth);
-    binExposure  = tdiExposure * ccdBinY;
-    tdiLength    = tdiMinutes * 60000 / binExposure;
-    if (tdiLength < ccdBinHeight)
-        tdiLength = ccdBinHeight;
-    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
-    tdiTimer.Start(binExposure);
-    tdiFileSaved = false;
-    tdiRow       = 0;
-    tdiState     = STATE_SCANNING;
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
@@ -983,7 +991,7 @@ void ScanFrame::OnSave(wxCommandEvent& event)
     char camera[]  = "StarLight Xpress Camera";
     if (tdiState == STATE_IDLE)
     {
-        wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT(""/*"FITS file (*.fits)"*/), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+        wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT("*.fits"/*"FITS file (*.fits)"*/), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         if (tdiFrame != NULL)
         {
             if (dlg.ShowModal() == wxID_OK)
