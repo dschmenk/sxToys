@@ -30,6 +30,8 @@ Select which min version to build to. Must have the appropriate SDK installed:
 
     `../configure --with-macosx-version-min=10.11  --enable-static=yes`
 
+    `make`
+
     `cd ../..`
 
     `make bundle`
