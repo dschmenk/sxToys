@@ -814,10 +814,11 @@ void ScanFrame::OnDuration(wxCommandEvent& event)
 }
 void ScanFrame::OnRate(wxCommandEvent& event)
 {
-    char rateText[40];
+    char rateText[40] = "";
     if (tdiState == STATE_IDLE)
     {
-        sprintf(rateText, "%2.3f", tdiScanRate);
+        if (tdiScanRate != 0.0)
+            sprintf(rateText, "%2.3f", tdiScanRate);
         wxTextEntryDialog dlg(this,
                               wxT("Rows/sec:"),
                               wxT("Scan Rate"),
