@@ -338,7 +338,7 @@ bool FocusFrame::ConnectCamera(int index)
         ccdFrameHeight = camParams[camSelect].height;
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
-        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         focusTimer.StartOnce(focusExposure);
         sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
@@ -496,7 +496,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
      * Prep next frame
      */
     if (focusExposure < 1000)
-        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)

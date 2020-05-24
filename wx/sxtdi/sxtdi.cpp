@@ -673,8 +673,8 @@ void ScanFrame::DoAlign()
         //
         // Track star for rate measurement
         //
-        xRadius = 45;
-        yRadius = 15;
+        xRadius = 5;
+        yRadius = 30;
         if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
           && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
@@ -875,38 +875,35 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 void ScanFrame::StartTDI()
 {
     int binExposure;
-    if (tdiState == STATE_IDLE && ccdModel)
+    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        return;
+    if (tdiExposure == 0)
     {
-        if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-            return;
-        if (tdiExposure == 0)
-        {
-            wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
-            return;
-        }
-        if (tdiMinutes == 0)
-        {
-            GetDuration();
-            if (tdiMinutes == 0)
-                return;
-        }
-        if (scanImage)
-            delete scanImage;
-        ccdBinWidth  = ccdFrameWidth  / ccdBinX;
-        ccdBinHeight = ccdFrameHeight / ccdBinY;
-        scanImage    = new wxImage(ccdBinHeight, ccdBinWidth);
-        binExposure  = tdiExposure * ccdBinY;
-        tdiLength    = tdiMinutes * 60000 / binExposure;
-        if (tdiLength < ccdBinHeight)
-            tdiLength = ccdBinHeight;
-        tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
-        memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-        tdiTimer.Start(binExposure);
-        tdiFileSaved = false;
-        tdiRow       = 0;
-        tdiState     = STATE_SCANNING;
+        wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
+        return;
     }
+    if (tdiMinutes == 0)
+    {
+        GetDuration();
+        if (tdiMinutes == 0)
+            return;
+    }
+    if (scanImage)
+        delete scanImage;
+    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
+    ccdBinHeight = ccdFrameHeight / ccdBinY;
+    scanImage    = new wxImage(ccdBinHeight, ccdBinWidth);
+    binExposure  = tdiExposure * ccdBinY;
+    tdiLength    = tdiMinutes * 60000 / binExposure;
+    if (tdiLength < ccdBinHeight)
+        tdiLength = ccdBinHeight;
+    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+    tdiTimer.Start(binExposure);
+    tdiFileSaved = false;
+    tdiRow       = 0;
+    tdiState     = STATE_SCANNING;
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
