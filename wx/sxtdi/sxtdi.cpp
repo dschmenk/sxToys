@@ -875,11 +875,6 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 void ScanFrame::StartTDI()
 {
     int binExposure;
-    if (tdiState == STATE_ALIGNING)
-    {
-        tdiTimer.Stop();
-        tdiState = STATE_IDLE;
-    }
     if (tdiState == STATE_IDLE && ccdModel)
     {
         if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
@@ -953,6 +948,11 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
 }
 void ScanFrame::OnScan(wxCommandEvent& event)
 {
+    if (tdiState == STATE_ALIGNING)
+    {
+        tdiTimer.Stop();
+        tdiState = STATE_IDLE;
+    }
     if (tdiState == STATE_IDLE && ccdModel)
     {
         StartTDI();
