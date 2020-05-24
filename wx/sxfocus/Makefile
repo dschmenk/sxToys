@@ -21,15 +21,17 @@ clean:
 	-rm sxfocus *.o
 	-rm sxFocus.app/Contents/MacOS/sxfocus
 
+ifeq ($(OS), Darwin)
+bundle: sxfocus
+	-mkdir sxFocus.app/Contents/MacOS
+	cp sxfocus sxFocus.app/Contents/MacOS
+else
 install: sxfocus
 	$(MAKE) -C ../../libsxccd/ install
 	cp sxfocus /usr/local/bin
 	cp share/sxfocus.desktop /usr/share/applications/
 	cp share/sxfocus.png /usr/share/pixmaps
 
-bundle: sxfocus
-	-mkdir sxFocus.app/Contents/MacOS
-	cp sxfocus sxFocus.app/Contents/MacOS
-
+endif
 ../../libsxccd/sxccd.o: ../../libsxccd/sxccd.h ../../libsxccd/src/sxccd.c
 	$(MAKE) -C ../../libsxccd/

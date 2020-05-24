@@ -45,7 +45,7 @@
 #include <sys/time.h>
 #endif
 #include "sxtdi.h"
-#define ALIGN_EXP       2000
+#define ALIGN_EXP       100
 #define MAX_WHITE       65535
 #define INC_BLACK       1024
 #define MIN_BLACK       0
@@ -650,7 +650,7 @@ void ScanFrame::DoAlign()
     sxReadPixels(camHandles[camSelect], // cam handle
                  ccdFrame, //pixbuf
                  ccdPixelCount); // pix count
-    sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
+    sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.StartOnce(ALIGN_EXP);
     if (numFrames == 0)
     {
@@ -673,7 +673,8 @@ void ScanFrame::DoAlign()
         //
         // Track star for rate measurement
         //
-        xRadius = yRadius = 15;
+        xRadius = 45;
+        yRadius = 15;
         if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
           && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
         {
@@ -905,7 +906,7 @@ void ScanFrame::StartTDI()
             tdiLength = ccdBinHeight;
         tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
         memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         tdiTimer.Start(binExposure);
         tdiFileSaved = false;
         tdiRow       = 0;
@@ -921,7 +922,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
     }
     if (tdiState == STATE_IDLE && ccdModel)
     {
-        sxClearPixels(camHandles[camSelect], SXCCD_IMAGE_HEAD, SXCCD_EXP_FLAGS_FIELD_BOTH);
+        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         tdiTimer.StartOnce(ALIGN_EXP);
         if (scanImage)
             delete scanImage;
