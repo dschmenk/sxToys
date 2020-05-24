@@ -208,6 +208,11 @@ typedef struct sxccd_params t_sxccd_params;
 /*
  * Prototypes.
  */
+#define sxClearImage        sxClearPixels
+#define sxLatchImage        sxLatchPixels
+#define sxExposeImage       sxExposePixels
+#define sxExposeImageGated  sxExposePixelsGated
+#define sxReadImage         sxReadPixels
 DLL_EXPORT LONG   sxReset(HANDLE sxHandle);
 DLL_EXPORT LONG   sxClearPixels(HANDLE sxHandle, USHORT flags, USHORT camIndex);
 DLL_EXPORT LONG   sxLatchPixels(HANDLE sxHandle, USHORT flags, USHORT camIndex, USHORT xoffset, USHORT yoffset, USHORT width, USHORT height, USHORT xbin, USHORT ybin);

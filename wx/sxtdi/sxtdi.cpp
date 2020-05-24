@@ -638,19 +638,19 @@ void ScanFrame::DoAlign()
     int trackTime;
     int xRadius, yRadius;
     gettimeofday(&trackFrameTime, NULL);
-    sxLatchPixels(camHandles[camSelect], // cam handle
-                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                  SXCCD_IMAGE_HEAD, // main ccd
-                  0, // xoffset
-                  0, // yoffset
-                  ccdFrameWidth, // width
-                  ccdFrameHeight, // height
-                  1, // xbin
-                  1); // ybin
-    sxReadPixels(camHandles[camSelect], // cam handle
-                 ccdFrame, //pixbuf
-                 ccdPixelCount); // pix count
-    sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+    sxLatchImage(camHandles[camSelect], // cam handle
+                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                 SXCCD_IMAGE_HEAD, // main ccd
+                 0, // xoffset
+                 0, // yoffset
+                 ccdFrameWidth, // width
+                 ccdFrameHeight, // height
+                 1, // xbin
+                 1); // ybin
+    sxReadImage(camHandles[camSelect], // cam handle
+                ccdFrame, //pixbuf
+                ccdPixelCount); // pix count
+    sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.StartOnce(ALIGN_EXP);
     if (numFrames == 0)
     {
@@ -729,19 +729,19 @@ void ScanFrame::DoAlign()
 void ScanFrame::DoTDI()
 {
     uint16_t *ccdRow = &tdiFrame[tdiRow * ccdBinWidth];
-    sxLatchPixels(camHandles[camSelect], // cam handle
-                  SXCCD_EXP_FLAGS_TDI |
-                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                  SXCCD_IMAGE_HEAD, // main ccd
+    sxLatchImage(camHandles[camSelect], // cam handle
+                 SXCCD_EXP_FLAGS_TDI |
+                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                 SXCCD_IMAGE_HEAD, // main ccd
                  0, // xoffset
                  0, // yoffset
                  ccdFrameWidth, // width
                  ccdBinY, // height
                  ccdBinX, // xbin
                  ccdBinY); // ybin
-    sxReadPixels(camHandles[camSelect], // cam handle
-                 ccdRow, //pixbuf
-                 ccdBinWidth); // pix count
+    sxReadImage(camHandles[camSelect], // cam handle
+                ccdRow, //pixbuf
+                ccdBinWidth); // pix count
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
     if (winWidth > 0 && winHeight > 0)
@@ -899,7 +899,7 @@ void ScanFrame::StartTDI()
         tdiLength = ccdBinHeight;
     tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
     memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+    sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.Start(binExposure);
     tdiFileSaved = false;
     tdiRow       = 0;
@@ -914,7 +914,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
     }
     if (tdiState == STATE_IDLE && ccdModel)
     {
-        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         tdiTimer.StartOnce(ALIGN_EXP);
         if (scanImage)
             delete scanImage;

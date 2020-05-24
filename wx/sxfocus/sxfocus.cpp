@@ -338,7 +338,7 @@ bool FocusFrame::ConnectCamera(int index)
         ccdFrameHeight = camParams[camSelect].height;
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
-        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
         focusTimer.StartOnce(focusExposure);
         sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
@@ -432,35 +432,35 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     {
         zoomWidth  = ccdFrameWidth  >> -focusZoom;
         zoomHeight = ccdFrameHeight >> -focusZoom;
-        sxLatchPixels(camHandles[camSelect], // cam handle
-                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                      SXCCD_IMAGE_HEAD, // main ccd
-                      0, // xoffset
-                      0, // yoffset
-                      ccdFrameWidth, // width
-                      ccdFrameHeight, // height
-                      1 << -focusZoom, // xbin
-                      1 << -focusZoom); // ybin
+        sxLatchImage(camHandles[camSelect], // cam handle
+                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                     SXCCD_IMAGE_HEAD, // main ccd
+                     0, // xoffset
+                     0, // yoffset
+                     ccdFrameWidth, // width
+                     ccdFrameHeight, // height
+                     1 << -focusZoom, // xbin
+                     1 << -focusZoom); // ybin
         pixCount = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1 << -focusZoom, 1 << -focusZoom);
     }
     else
     {
         zoomWidth  = ccdFrameWidth >> focusZoom;
         zoomHeight = ccdFrameHeight >> focusZoom;
-        sxLatchPixels(camHandles[camSelect], // cam handle
-                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                      SXCCD_IMAGE_HEAD, // main ccd
-                      (ccdFrameWidth  - zoomWidth)  / 2, // xoffset
-                      (ccdFrameHeight - zoomHeight) / 2, // yoffset
-                      zoomWidth, // width
-                      zoomHeight, // height
-                      1, // xbin
-                      1); // ybin
+        sxLatchImage(camHandles[camSelect], // cam handle
+                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                     SXCCD_IMAGE_HEAD, // main ccd
+                     (ccdFrameWidth  - zoomWidth)  / 2, // xoffset
+                     (ccdFrameHeight - zoomHeight) / 2, // yoffset
+                     zoomWidth, // width
+                     zoomHeight, // height
+                     1, // xbin
+                     1); // ybin
         pixCount = FRAMEBUF_COUNT(zoomWidth, zoomHeight, 1, 1);
     }
-    sxReadPixels(camHandles[camSelect], // cam handle
-                 ccdFrame, //pixbuf
-                 pixCount); // pix count
+    sxReadImage(camHandles[camSelect], // cam handle
+                ccdFrame, //pixbuf
+                pixCount); // pix count
     /*
      * Convert 16 bit samples to 24 BPP image
      */
@@ -496,7 +496,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
      * Prep next frame
      */
     if (focusExposure < 1000)
-        sxClearPixels(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     focusTimer.StartOnce(focusExposure);
 }
 void FocusFrame::OnFilter(wxCommandEvent& event)
