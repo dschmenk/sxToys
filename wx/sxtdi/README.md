@@ -65,9 +65,7 @@ If you see the frame wash out during the first frame, there is probably too much
 
 ![sxTDI Ramp](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-scanning.png)
 
-You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use [GIMP](https://gimp.org), the Gnu Image Manipulation Program, which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
-
-Make sure you adjust your computer's power settings so it doesn't go to sleep during scanning.
+Make sure you adjust your computer's power settings so it doesn't go to sleep during scanning. The Mac is a bit of a challenge getting it to stay awake for the duration of the scan. Try a program like [Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704?mt=12), available for free in the Mac App Store.
 
 ## Camera Options
 
@@ -77,9 +75,9 @@ USB 1.1 module users under Linux or MacOS may need to override the camera model 
 
 USB 1.1 module users under Windows should follow the process of upgrading the firmware here: https://github.com/dschmenk/sxToys/tree/master/Windows%20Drivers
 
-## Saving The image
+## Saving The Image
 
-sxTDI will save the image to a FITS file.
+sxTDI will save the image to a FITS file. You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use [GIMP](https://gimp.org), the Gnu Image Manipulation Program, which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
 
 ## Useful Links
 
