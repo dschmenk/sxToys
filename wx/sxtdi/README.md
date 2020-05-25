@@ -25,7 +25,7 @@ My cheap solution circled here involves a bed frame clamp (Google: "bed frame ra
 
 The easiest way to get gross alignment is to watch the direction of the star drift during focussing. You want the camera oriented such that the stars drift towards the top of the window. Honest.
 
-[sxTDI sxFocus Drift](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-sxfocusdrift.png)
+![sxFocus Drift](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-sxfocusdrift.png)
 
 For fine alignment and scan rate measurement, select the 'Scan/Align' menu item. Just like sxFocus, many of the operations can be selected with a simple key press, 'A' in this case. You will see the window clear to black with horizontal green alignment lines. This image is actually rotated by 90 degrees so the the stars should drift left to right. The window will superimpose every frame read from the camera to show the overall drift of the stars:
 
