@@ -45,7 +45,7 @@
 #include <sys/time.h>
 #endif
 #include "sxtdi.h"
-#define ALIGN_EXP       100
+#define ALIGN_EXP       1000
 #define MAX_WHITE       65535
 #define INC_BLACK       1024
 #define MIN_BLACK       0
@@ -720,7 +720,7 @@ void ScanFrame::DoAlign()
         wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
         char statusText[40];
-        sprintf(statusText, "Track: %4.3f,%4.3f", trackStarX, trackStarY);
+        sprintf(statusText, "Track: %4.3f", trackStarX);
         SetStatusText(statusText, 2);
         sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
         SetStatusText(statusText, 1);
@@ -947,7 +947,10 @@ void ScanFrame::OnScan(wxCommandEvent& event)
 {
     if (tdiState == STATE_ALIGNING)
     {
+        char statusText[40];
         tdiTimer.Stop();
+        sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
+        SetStatusText(statusText, 2);
         tdiState = STATE_IDLE;
     }
     if (tdiState == STATE_IDLE && ccdModel)
