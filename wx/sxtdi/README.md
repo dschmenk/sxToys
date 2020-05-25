@@ -31,7 +31,7 @@ For fine alignment and scan rate measurement, select the 'Scan/Align' menu item.
 
 ![sxTDI Align](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-align.png)
 
-sxTDI will pick a "best candidate" star to track. It will calculate the up and down drift as well as the scan rate. Should the tracking star get occluded by clouds or run off the frame, you will see this windows pop up, and alignment will cease:
+sxTDI will pick a "best candidate" star to track. It will calculate the up and down drift as well as the scan rate and display them in the status bar. If the status bar is too small, simply resize the window until you can see it fully. Should the tracking star get occluded by clouds or run off the frame, you will see this windows pop up, and alignment will cease:
 
 ![sxTDI Lost](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-lost.png)
 
