@@ -49,6 +49,6 @@ It is possible to drive all the parameters from the command line so that the dri
 
 ## Test Image
 
-Here is a sample (first ~45 minutes of 6 hour scan) using an SXV-H9 camera and Meade 80mm (f/6) refractor (scroll down):
+Here is a sample, unprocessed except for brightness adjustment to bring out the vertical streaking inherent in drift scanning. Using an SXV-H9 camera and Meade 80mm (f/6) refractor (scroll down to check out the galaxies):
 
-![Test Scan](https://github.com/dschmenk/sxToys/blob/master/images/scopescan1.jpg).
+![Test Scan](https://github.com/dschmenk/sxToys/blob/master/images/macscan.jpg).
