@@ -607,5 +607,5 @@ void FocusFrame::OnExit(wxCommandEvent& event)
 }
 void FocusFrame::OnAbout(wxCommandEvent& event)
 {
-    wxMessageBox("Starlight Xpress Focusser\nVersion 0.1 Preview 2\nCopyright (c) 2003-2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Focusser\nVersion 0.1 Alpha 0\nCopyright (c) 2003-2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
 }

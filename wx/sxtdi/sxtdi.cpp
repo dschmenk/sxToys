@@ -225,6 +225,11 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
  */
 wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
 /*
+ * Gamma choices
+ */
+wxString GammaChoices[] = {wxT("1.0"), wxT("1.5"), wxT("2.0"), wxT("2.5")};
+float GammaValues[] = {1.0, 1.5, 2.0, 2.5};
+/*
  * Camera utility functions
  */
 int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
@@ -303,6 +308,7 @@ private:
     void OnRate(wxCommandEvent& event);
     void OnBinX(wxCommandEvent& event);
     void OnBinY(wxCommandEvent& event);
+    void OnGamma(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnBackground(wxEraseEvent& event);
     void OnPaint(wxPaintEvent& event);
@@ -321,6 +327,7 @@ enum
     ID_RATE,
     ID_BINX,
     ID_BINY,
+    ID_GAMMA,
 };
 enum
 {
@@ -341,6 +348,7 @@ wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_MENU(ID_RATE,       ScanFrame::OnRate)
     EVT_MENU(ID_BINX,       ScanFrame::OnBinX)
     EVT_MENU(ID_BINY,       ScanFrame::OnBinY)
+    EVT_MENU(ID_GAMMA,      ScanFrame::OnGamma)
     EVT_MENU(wxID_NEW,      ScanFrame::OnNew)
     EVT_MENU(wxID_SAVE,     ScanFrame::OnSave)
     EVT_MENU(wxID_ABOUT,    ScanFrame::OnAbout)
@@ -466,12 +474,14 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     menuCamera->Append(wxID_SAVE, "&Save...\tCtrl-S");
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
+    wxMenu *menuView = new wxMenu;
+    menuView->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
+    menuView->Append(ID_GAMMA, "&Gamma...");
     wxMenu *menuScan = new wxMenu;
     menuScan->Append(ID_ALIGN, "&Align\tA");
     menuScan->Append(ID_SCAN, "&TDI Scan\tT");
     menuScan->Append(ID_STOP, "S&top\tCtrl-T");
     menuScan->AppendSeparator();
-    menuScan->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
     menuScan->Append(ID_DURATION, "Scan &Duration...\tD");
     menuScan->Append(ID_RATE, "Scan &Rate...");
     menuScan->Append(ID_BINX, "&X Binning...");
@@ -480,6 +490,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
     menuBar->Append(menuCamera, "&Camera");
+    menuBar->Append(menuView, "&View");
     menuBar->Append(menuScan, "&Scan");
     menuBar->Append(menuHelp, "&Help");
     SetMenuBar(menuBar);
@@ -1031,7 +1042,19 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 {
     pixelFilter = event.IsChecked();
 }
+void ScanFrame::OnGamma(wxCommandEvent& event)
+{
+    wxSingleChoiceDialog dlg(this,
+                          wxT("Gamma:"),
+                          wxT("Gamma Value"),
+                          4,
+                          GammaChoices);
+    if (dlg.ShowModal() == wxID_OK )
+    {
+        pixelGamma =  GammaValues[dlg.GetSelection()];
+    }
+}
 void ScanFrame::OnAbout(wxCommandEvent& event)
 {
-    wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Preview 2\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Alpha 0\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
 }
