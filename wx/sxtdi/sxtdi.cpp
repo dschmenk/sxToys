@@ -660,7 +660,7 @@ void ScanFrame::DoAlign()
         trackStarInitialX = ccdFrameWidth/2;
         trackStarInitialY = 0.0;
         xRadius = yRadius = 15;
-        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth/4, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 1.0))
+        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth/4, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 0.5 /*1.0*/))
         {
             trackInitialTime = trackFrameTime;
             trackStarX = trackStarInitialX;
@@ -676,7 +676,7 @@ void ScanFrame::DoAlign()
         xRadius = 5;
         yRadius = 30;
         if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
-          && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 1.0))
+          && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 0.5 /*1.0*/))
         {
             if (trackStarInitialY > trackStarY)
             {
