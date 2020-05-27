@@ -227,8 +227,8 @@ wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
 /*
  * Gamma choices
  */
-wxString GammaChoices[] = {wxT("1.0"), wxT("1.5"), wxT("2.0"), wxT("2.5")};
-float GammaValues[] = {1.0, 1.5, 2.0, 2.5};
+wxString GammaChoices[] = {wxT("1.0"), wxT("1.5"), wxT("2.0")};
+float GammaValues[] = {1.0, 1.5, 2.0};
 /*
  * Camera utility functions
  */
@@ -684,8 +684,8 @@ void ScanFrame::DoAlign()
         //
         // Track star for rate measurement
         //
-        xRadius = 5;
-        yRadius = 30;
+        xRadius = 15;
+        yRadius = 15;
         if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
           && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 0.5 /*1.0*/))
         {
@@ -1047,7 +1047,7 @@ void ScanFrame::OnGamma(wxCommandEvent& event)
     wxSingleChoiceDialog dlg(this,
                           wxT("Gamma:"),
                           wxT("Gamma Value"),
-                          4,
+                          3,
                           GammaChoices);
     if (dlg.ShowModal() == wxID_OK )
     {
