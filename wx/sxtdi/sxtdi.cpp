@@ -39,11 +39,6 @@
 #include <wx/numdlg.h>
 #include <wx/filedlg.h>
 #include <wx/cmdline.h>
-#ifdef _MSC_VER
-#include "wintime.h"
-#else
-#include <sys/time.h>
-#endif
 #include "sxtdi.h"
 #define TRACK_STAR_RADIUS   150 // Tracking star max radius in microns
 #define ALIGN_EXP           1000
@@ -818,6 +813,7 @@ void ScanFrame::DoTDI()
     if (++tdiRow == tdiLength)
     {
         tdiTimer.Stop();
+        DISABLE_HIGH_RES_TIMER();
         tdiState = STATE_IDLE;
         SetTitle(wxT("SX TDI"));
         if (autonomous)
@@ -945,6 +941,7 @@ void ScanFrame::StartTDI()
         tdiLength = ccdBinHeight;
     tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
     memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    ENABLE_HIGH_RES_TIMER();
     sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.Start(binExposure);
     tdiFileSaved = false;
@@ -1017,6 +1014,7 @@ void ScanFrame::OnStop(wxCommandEvent& event)
             char statusText[40];
             sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
             SetStatusText(statusText, 2);
+            DISABLE_HIGH_RES_TIMER();
         }
         tdiState = STATE_IDLE;
         SetTitle(wxT("SX TDI"));
