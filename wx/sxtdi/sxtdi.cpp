@@ -257,6 +257,19 @@ void sxRelease(HANDLE hlist[], int count)
 		sxClose(hlist[count]);
 }
 /*
+ * CCD Readout Thread
+ */
+class ScanFrame;
+class ScanThread : public wxThread
+{
+public:
+    ScanThread(ScanFrame *param);
+protected:
+    virtual ExitCode Entry();
+private:
+    ScanFrame *scan;
+};
+/*
  * TDI Scan App class
  */
 class ScanApp : public wxApp
@@ -271,7 +284,9 @@ class ScanFrame : public wxFrame
 public:
     ScanFrame();
     void StartTDI();
-private:
+protected:
+    friend class ScanThread;
+    ScanThread    *tdiThread;
     HANDLE         camHandles[SXCCD_MAX_CAMS];
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
@@ -289,7 +304,9 @@ private:
     int            tdiLength, tdiRow, numFrames;
     int            tdiExposure, tdiMinutes;
     float          tdiScanRate;
+private:
     float          trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
+    wxStopWatch   *trackWatch;
     wxImage       *scanImage;
     wxTimer        tdiTimer;
     void DoAlign();
@@ -646,11 +663,12 @@ void ScanFrame::OnPaint(wxPaintEvent& event)
 }
 void ScanFrame::DoAlign()
 {
-    static struct timeval trackInitialTime;
-    struct timeval trackFrameTime;
-    int trackTime;
-    int xRadius, yRadius;
-    gettimeofday(&trackFrameTime, NULL);
+    //static struct timeval trackInitialTime;
+    //struct timeval trackFrameTime;
+    //int trackTime;
+    static long trackInitialTime;
+    //gettimeofday(&trackFrameTime, NULL);
+    long trackTime = trackWatch->Time();
     sxLatchImage(camHandles[camSelect], // cam handle
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                  SXCCD_IMAGE_HEAD, // main ccd
@@ -665,8 +683,8 @@ void ScanFrame::DoAlign()
                 ccdPixelCount); // pix count
     sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.StartOnce(ALIGN_EXP);
-    xRadius = TRACK_STAR_RADIUS / ccdPixelHeight;    // Centroid radius
-    yRadius = TRACK_STAR_RADIUS / ccdPixelWidth * 2; // Take into account star streaking for long focal lengths
+    int xRadius = TRACK_STAR_RADIUS / ccdPixelHeight;    // Centroid radius
+    int yRadius = TRACK_STAR_RADIUS / ccdPixelWidth * 2; // Take into account star streaking for long focal lengths
     if (numFrames == 0)
     {
         //
@@ -685,7 +703,7 @@ void ScanFrame::DoAlign()
                              &yRadius,
                              1.0))
         {
-            trackInitialTime = trackFrameTime;
+            trackInitialTime = trackTime;
             trackStarX = trackStarInitialX;
             trackStarY = trackStarInitialY;
             numFrames  = 1;
@@ -721,8 +739,8 @@ void ScanFrame::DoAlign()
         {
             //if (trackStarInitialY > trackStarY)
             {
-                trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
-                trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
+                //trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
+                //trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
                 tdiExposure = trackTime / (trackStarInitialY - trackStarY);
                 tdiScanRate = 1000.0 / tdiExposure;
                 numFrames++;
@@ -742,10 +760,10 @@ void ScanFrame::DoAlign()
         int pixelMax = MIN_PIX;
         int pixelMin = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
-        for (int y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        for (unsigned y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
             uint16_t *m16 = &(ccdFrame[ccdPixelCount - y - 1]);
-            for (int x = 0; x < ccdFrameHeight; x++)
+            for (unsigned x = 0; x < ccdFrameHeight; x++)
             {
                 if (*m16 > pixelMax) pixelMax = *m16;
                 if (*m16 < pixelMin) pixelMin = *m16;
@@ -767,22 +785,38 @@ void ScanFrame::DoAlign()
         SetStatusText(statusText, 1);
     }
 }
+ScanThread::ScanThread(ScanFrame *param) : wxThread(wxTHREAD_JOINABLE)
+{
+    scan = param;
+}
+wxThread::ExitCode ScanThread::Entry()
+{
+    uint16_t *ccdRow = scan->tdiFrame;
+    sxClearImage(scan->camHandles[scan->camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+    wxStopWatch sw;
+    do
+    {
+        wxMilliSleep(scan->tdiExposure - sw.Time());
+        sw.Start(0);
+        sxLatchImage(scan->camHandles[scan->camSelect], // cam handle
+                     SXCCD_EXP_FLAGS_TDI |
+                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                     SXCCD_IMAGE_HEAD, // main ccd
+                     0, // xoffset
+                     0, // yoffset
+                     scan->ccdFrameWidth, // width
+                     scan->ccdBinY, // height
+                     scan->ccdBinX, // xbin
+                     scan->ccdBinY); // ybin
+        sxReadImage(scan->camHandles[scan->camSelect], // cam handle
+                    ccdRow, //pixbuf
+                    scan->ccdBinWidth); // pix count
+        ccdRow += scan->ccdBinWidth;
+    } while (++(scan->tdiRow) < scan->tdiLength);
+    return 0;
+}
 void ScanFrame::DoTDI()
 {
-    uint16_t *ccdRow = &tdiFrame[tdiRow * ccdBinWidth];
-    sxLatchImage(camHandles[camSelect], // cam handle
-                 SXCCD_EXP_FLAGS_TDI |
-                 SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                 SXCCD_IMAGE_HEAD, // main ccd
-                 0, // xoffset
-                 0, // yoffset
-                 ccdFrameWidth, // width
-                 ccdBinY, // height
-                 ccdBinX, // xbin
-                 ccdBinY); // ybin
-    sxReadImage(camHandles[camSelect], // cam handle
-                ccdRow, //pixbuf
-                ccdBinWidth); // pix count
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
     if (winWidth > 0 && winHeight > 0)
@@ -790,11 +824,11 @@ void ScanFrame::DoTDI()
         int pixelMax       = MIN_PIX;
         int pixelMin       = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
-        uint16_t *pixels   = (tdiRow < ccdBinHeight) ? &tdiFrame[ccdBinWidth * (ccdBinHeight - 1)] : ccdRow;
-        for (int y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((tdiRow < ccdBinHeight) ? ccdBinHeight - 1 : tdiRow)];
+        for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
             uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
-            for (int x = 0; x < ccdBinHeight; x++)
+            for (unsigned x = 0; x < ccdBinHeight; x++)
             {
                 if (*m16 > pixelMax) pixelMax = *m16;
                 if (*m16 < pixelMin) pixelMin = *m16;
@@ -810,12 +844,14 @@ void ScanFrame::DoTDI()
         wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
     }
-    if (++tdiRow == tdiLength)
+    if (tdiRow >= tdiLength)
     {
         tdiTimer.Stop();
         DISABLE_HIGH_RES_TIMER();
         tdiState = STATE_IDLE;
         SetTitle(wxT("SX TDI"));
+        tdiThread->Wait();
+        delete tdiThread;
         if (autonomous)
         {
             char filename[255];
@@ -838,17 +874,14 @@ void ScanFrame::OnTimer(wxTimerEvent& event)
 }
 void ScanFrame::GetDuration()
 {
- 	if (tdiState == STATE_IDLE)
-	{
-		wxNumberEntryDialog dlg(this,
-								wxT(""),
-								wxT("Hours:"),
-								wxT("Scan Duration"),
-								6, 1, 12);
-		if (dlg.ShowModal() != wxID_OK)
-			return;
-		tdiMinutes = dlg.GetValue() * 60;
-	}
+	wxNumberEntryDialog dlg(this,
+							wxT(""),
+							wxT("Hours:"),
+							wxT("Scan Duration"),
+							6, 1, 12);
+	if (dlg.ShowModal() != wxID_OK)
+		return;
+	tdiMinutes = dlg.GetValue() * 60;
 }
 void ScanFrame::OnDuration(wxCommandEvent& event)
 {
@@ -941,23 +974,30 @@ void ScanFrame::StartTDI()
         tdiLength = ccdBinHeight;
     tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
     memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    ENABLE_HIGH_RES_TIMER();
-    sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-    tdiTimer.Start(binExposure);
     tdiFileSaved = false;
     tdiRow       = 0;
     tdiState     = STATE_SCANNING;
+    ENABLE_HIGH_RES_TIMER();
+    tdiThread = new ScanThread(this);
+    tdiThread->SetPriority(wxPRIORITY_MAX); // Make it as real-time as possible
+    tdiThread->Run();
+    tdiTimer.Start(max(binExposure, 1000)); // Don't update screen more than once a second
 }
 void ScanFrame::OnAlign(wxCommandEvent& event)
 {
     if (tdiState == STATE_ALIGNING)
     {
         tdiTimer.Stop();
-        tdiState = STATE_IDLE;
+        delete trackWatch;
+        DISABLE_HIGH_RES_TIMER();
+        trackWatch = NULL;
+        tdiState   = STATE_IDLE;
     }
     if (tdiState == STATE_IDLE && ccdModel)
     {
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+        ENABLE_HIGH_RES_TIMER();
+        trackWatch = new wxStopWatch();
         tdiTimer.StartOnce(ALIGN_EXP);
         if (scanImage)
             delete scanImage;
@@ -992,9 +1032,12 @@ void ScanFrame::OnScan(wxCommandEvent& event)
     {
         char statusText[40];
         tdiTimer.Stop();
+        DISABLE_HIGH_RES_TIMER();
+        delete trackWatch;
+        trackWatch = NULL;
+        tdiState   = STATE_IDLE;
         sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
         SetStatusText(statusText, 2);
-        tdiState = STATE_IDLE;
     }
     if (tdiState == STATE_IDLE && ccdModel)
     {
@@ -1007,15 +1050,22 @@ void ScanFrame::OnStop(wxCommandEvent& event)
     if (tdiTimer.IsRunning())
     {
         tdiTimer.Stop();
+        delete trackWatch;
+        trackWatch = NULL;
         if (tdiState == STATE_SCANNING)
+        {
             tdiLength = tdiRow;
+            tdiThread->Wait();
+            delete tdiThread;
+            tdiThread = NULL;
+        }
         else
         {
             char statusText[40];
             sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
             SetStatusText(statusText, 2);
-            DISABLE_HIGH_RES_TIMER();
         }
+        DISABLE_HIGH_RES_TIMER();
         tdiState = STATE_IDLE;
         SetTitle(wxT("SX TDI"));
     }

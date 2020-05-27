@@ -7,12 +7,8 @@ typedef signed   char  int8_t;
 typedef unsigned short uint16_t;
 typedef signed   short int16_t;
 #endif
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <Windows.h> // Windows.h -> WinDef.h defines min() max()
-//#include <timeapi.h>
-#include "wintime.h"
-#define ENABLE_HIGH_RES_TIMER() if (tdiExposure < 1000) timeBeginPeriod(1)
+#include <timeapi.h>
+define ENABLE_HIGH_RES_TIMER() if (tdiExposure < 1000) timeBeginPeriod(1)
 #define DISABLE_HIGH_RES_TIMER() if (tdiExposure < 1000) timeEndPeriod(1)
 #else
 #include <sys/time.h>
