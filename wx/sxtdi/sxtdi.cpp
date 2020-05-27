@@ -45,18 +45,19 @@
 #include <sys/time.h>
 #endif
 #include "sxtdi.h"
-#define ALIGN_EXP       1000
-#define MAX_WHITE       65535
-#define INC_BLACK       1024
-#define MIN_BLACK       0
-#define MAX_BLACK       32768
-#define PIX_BITWIDTH    16
-#define MIN_PIX         0
-#define MAX_PIX         ((1<<PIX_BITWIDTH)-1)
-#define LUT_BITWIDTH    10
-#define LUT_SIZE        (1<<LUT_BITWIDTH)
-#define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
-#define max(a,b)        ((a)>=(b)?(a):(b))
+#define TRACK_STAR_RADIUS   150 // Tracking star max radius in microns
+#define ALIGN_EXP           1000
+#define MAX_WHITE           65535
+#define INC_BLACK           1024
+#define MIN_BLACK           0
+#define MAX_BLACK           32768
+#define PIX_BITWIDTH        16
+#define MIN_PIX             0
+#define MAX_PIX             ((1<<PIX_BITWIDTH)-1)
+#define LUT_BITWIDTH        10
+#define LUT_SIZE            (1<<LUT_BITWIDTH)
+#define LUT_INDEX(i)        ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
+#define max(a,b)            ((a)>=(b)?(a):(b))
 int ccdModel = SXCCD_MX5;
 /*
  * Camera Model Overrired for generic USB/USB2 interface
@@ -133,6 +134,8 @@ static void calcCentroid(int width, int height, uint16_t *pixels, int x, int y, 
         *x_centroid /= sum;
         *y_centroid /= sum;
     }
+    else
+        printf("calcCentroid failed on pixel min test\n");
 }
 static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_centroid, float *y_centroid, int x_range, int y_range, int *x_max_radius, int *y_max_radius, float sigs)
 {
@@ -208,7 +211,11 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                             y = (int)(*y_centroid + 0.5);
                             calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                         }
+                        else
+                            printf("findBestCentroid failed on centroid radius test\n");
                     }
+                    else
+                        printf("findBestCentroid skipped hot pixel\n");
                 }
             }
         }
@@ -654,24 +661,34 @@ void ScanFrame::DoAlign()
                  SXCCD_IMAGE_HEAD, // main ccd
                  0, // xoffset
                  0, // yoffset
-                 ccdFrameWidth, // width
+                 ccdFrameWidth,  // width
                  ccdFrameHeight, // height
-                 1, // xbin
+                 1,  // xbin
                  1); // ybin
     sxReadImage(camHandles[camSelect], // cam handle
                 ccdFrame, //pixbuf
                 ccdPixelCount); // pix count
     sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.StartOnce(ALIGN_EXP);
+    xRadius = TRACK_STAR_RADIUS / ccdPixelHeight;    // Centroid radius
+    yRadius = TRACK_STAR_RADIUS / ccdPixelWidth * 2; // Take into account star streaking for long focal lengths
     if (numFrames == 0)
     {
         //
         // If first frame, identify best candidate for measuring scan rate
         //
-        trackStarInitialX = ccdFrameWidth/2;
-        trackStarInitialY = 0.0;
-        xRadius = yRadius = 15;
-        if (findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarInitialX, &trackStarInitialY, ccdFrameWidth/4, ccdFrameHeight - ccdFrameHeight/4, &xRadius, &yRadius, 0.5 /*1.0*/))
+        trackStarInitialX = ccdFrameWidth / 2; // Search left half on image for initial best centroid
+        trackStarInitialY = ccdFrameHeight / 4;
+        if (findBestCentroid(ccdFrameWidth,
+                             ccdFrameHeight,
+                             ccdFrame,
+                             &trackStarInitialX, // centroid coordinate
+                             &trackStarInitialY,
+                             ccdFrameWidth / 4, // search range
+                             ccdFrameHeight / 2,
+                             &xRadius,
+                             &yRadius,
+                             1.0))
         {
             trackInitialTime = trackFrameTime;
             trackStarX = trackStarInitialX;
@@ -684,12 +701,30 @@ void ScanFrame::DoAlign()
         //
         // Track star for rate measurement
         //
-        xRadius = 15;
-        yRadius = 15;
-        if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
-          && findBestCentroid(ccdFrameWidth, ccdFrameHeight, ccdFrame, &trackStarX, &trackStarY, 5, ccdFrameHeight, &xRadius, &yRadius, 0.5 /*1.0*/))
+        int searchRangeY;
+        if (numFrames == 1)
         {
-            if (trackStarInitialY > trackStarY)
+            trackStarY  += ccdFrameHeight / 8 - 1;
+            searchRangeY = ccdFrameHeight / 4;
+        }
+        else
+        {
+            trackStarY  += tdiScanRate;
+            searchRangeY = tdiScanRate * 2;
+        }
+        if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
+          && findBestCentroid(ccdFrameWidth,
+                              ccdFrameHeight,
+                              ccdFrame,
+                              &trackStarX,  // centroid start and final search coordinate
+                              &trackStarY,
+                              xRadius * 5,  // search X range
+                              searchRangeY, // search Y range
+                              &xRadius,     // max X radius
+                              &yRadius,     // max Y radius
+                              1.0))         // noise threshold
+        {
+            //if (trackStarInitialY > trackStarY)
             {
                 trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
                 trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
