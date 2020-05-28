@@ -5,9 +5,9 @@
     All rights reserved.
 
     Permission is hereby granted, free of charge, to any person obtaining a
-    copy of this software and associated documentation files (the
     "Software"), to deal in the Software without restriction, including
     without limitation the rights to use, copy, modify, merge, publish,
+    copy of this software and associated documentation files (the
     distribute, and/or sell copies of the Software, and to permit persons
     to whom the Software is furnished to do so, provided that the above
     copyright notice(s) and this permission notice appear in all copies of
@@ -301,8 +301,8 @@ protected:
     uint16_t      *tdiFrame;
     float          pixelGamma;
     bool           pixelFilter;
-    int            tdiLength, tdiRow, numFrames;
-    int            tdiExposure, tdiMinutes;
+    volatile int   tdiLength, tdiRow;
+    int            tdiExposure, tdiMinutes, numFrames;
     float          tdiScanRate;
 private:
     float          trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
@@ -979,7 +979,7 @@ void ScanFrame::StartTDI()
     tdiState     = STATE_SCANNING;
     ENABLE_HIGH_RES_TIMER();
     tdiThread = new ScanThread(this);
-    tdiThread->SetPriority(wxPRIORITY_MAX); // Make it as real-time as possible
+    //tdiThread->SetPriority(wxPRIORITY_MAX); // Make it as real-time as possible
     tdiThread->Run();
     tdiTimer.Start(max(binExposure, 1000)); // Don't update screen more than once a second
 }
@@ -1105,8 +1105,15 @@ void ScanFrame::OnSave(wxCommandEvent& event)
 }
 void ScanFrame::OnExit(wxCommandEvent& event)
 {
-    if (tdiState == STATE_SCANNING && wxMessageBox("Cancel scan in progress?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-        return;
+    if (tdiState == STATE_SCANNING)
+    {
+        if (wxMessageBox("Cancel scan in progress?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+           return;
+        tdiLength = tdiRow;
+        tdiThread->Wait();
+        delete tdiThread;
+        tdiThread = NULL;
+    }
     else if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Exit without saving image?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
         return;
     if (scanImage != NULL)
