@@ -7,7 +7,7 @@ typedef signed   char  int8_t;
 typedef unsigned short uint16_t;
 typedef signed   short int16_t;
 #endif
-#include <timeapi.h>
+#include <windows.h>
 #define ENABLE_HIGH_RES_TIMER() if (tdiExposure < 1000) timeBeginPeriod(1)
 #define DISABLE_HIGH_RES_TIMER() if (tdiExposure < 1000) timeEndPeriod(1)
 #else
