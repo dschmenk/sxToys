@@ -40,7 +40,8 @@
 #include <wx/filedlg.h>
 #include <wx/cmdline.h>
 #include "sxtdi.h"
-#define TRACK_STAR_RADIUS   150 // Tracking star max radius in microns
+#define TRACK_STAR_RADIUS   200 // Tracking star max radius in microns
+#define TRACK_STAR_SIGMA    1.0
 #define ALIGN_EXP           1000
 #define MAX_WHITE           65535
 #define INC_BLACK           1024
@@ -130,7 +131,7 @@ static void calcCentroid(int width, int height, uint16_t *pixels, int x, int y, 
         *y_centroid /= sum;
     }
     else
-        printf("calcCentroid failed on pixel min test\n");
+        fprintf(stderr, "calcCentroid failed on pixel min test\n");
 }
 static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_centroid, float *y_centroid, int x_range, int y_range, int *x_max_radius, int *y_max_radius, float sigs)
 {
@@ -207,10 +208,10 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                             calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                         }
                         else
-                            printf("findBestCentroid failed on centroid radius test\n");
+                            fprintf(stderr, "findBestCentroid failed on centroid radius test\n");
                     }
                     else
-                        printf("findBestCentroid skipped hot pixel\n");
+                        fprintf(stderr, "findBestCentroid skipped hot pixel\n");
                 }
             }
         }
@@ -663,11 +664,7 @@ void ScanFrame::OnPaint(wxPaintEvent& event)
 }
 void ScanFrame::DoAlign()
 {
-    //static struct timeval trackInitialTime;
-    //struct timeval trackFrameTime;
-    //int trackTime;
     static long trackInitialTime;
-    //gettimeofday(&trackFrameTime, NULL);
     long trackTime = trackWatch->Time();
     sxLatchImage(camHandles[camSelect], // cam handle
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
@@ -690,22 +687,22 @@ void ScanFrame::DoAlign()
         //
         // If first frame, identify best candidate for measuring scan rate
         //
-        trackStarInitialX = ccdFrameWidth / 2; // Search left half on image for initial best centroid
-        trackStarInitialY = ccdFrameHeight / 4;
+        trackStarX = ccdFrameWidth / 2; // Search left half on image for initial best centroid
+        trackStarY = ccdFrameHeight - 1;
         if (findBestCentroid(ccdFrameWidth,
                              ccdFrameHeight,
                              ccdFrame,
-                             &trackStarInitialX, // centroid coordinate
-                             &trackStarInitialY,
-                             ccdFrameWidth / 4, // search range
+                             &trackStarX, // centroid coordinate
+                             &trackStarY,
+                             ccdFrameWidth / 2, // search range
                              ccdFrameHeight / 2,
                              &xRadius,
                              &yRadius,
-                             1.0))
+                             TRACK_STAR_SIGMA))
         {
-            trackInitialTime = trackTime;
-            trackStarX = trackStarInitialX;
-            trackStarY = trackStarInitialY;
+            trackInitialTime  = trackTime;
+            trackStarInitialX = trackStarX;
+            trackStarInitialY = trackStarY;
             numFrames  = 1;
         }
     }
@@ -714,34 +711,21 @@ void ScanFrame::DoAlign()
         //
         // Track star for rate measurement
         //
-        int searchRangeY;
-        if (numFrames == 1)
-        {
-            trackStarY  += ccdFrameHeight / 8 - 1;
-            searchRangeY = ccdFrameHeight / 4;
-        }
-        else
-        {
-            trackStarY  += tdiScanRate;
-            searchRangeY = tdiScanRate * 2;
-        }
-        if ((trackStarY > tdiScanRate * ALIGN_EXP/1000)
+        if ((trackStarY > tdiScanRate)
           && findBestCentroid(ccdFrameWidth,
                               ccdFrameHeight,
                               ccdFrame,
                               &trackStarX,  // centroid start and final search coordinate
                               &trackStarY,
-                              xRadius * 5,  // search X range
-                              searchRangeY, // search Y range
+                              xRadius,      // search X range
+                              yRadius,      // search Y range
                               &xRadius,     // max X radius
                               &yRadius,     // max Y radius
-                              1.0))         // noise threshold
+                              TRACK_STAR_SIGMA))         // noise threshold
         {
-            //if (trackStarInitialY > trackStarY)
+            if (trackStarInitialY > trackStarY)
             {
-                //trackTime   = (trackFrameTime.tv_sec  - trackInitialTime.tv_sec)  * 1000;
-                //trackTime  += (trackFrameTime.tv_usec - trackInitialTime.tv_usec) / 1000;
-                tdiExposure = trackTime / (trackStarInitialY - trackStarY);
+                tdiExposure = (trackTime - trackInitialTime) / (trackStarInitialY - trackStarY);
                 tdiScanRate = 1000.0 / tdiExposure;
                 numFrames++;
             }
@@ -796,9 +780,7 @@ wxThread::ExitCode ScanThread::Entry()
     wxStopWatch sw;
     do
     {
-        wxMilliSleep(scan->tdiExposure - sw.Time());
-        sw.Start(0);
-        sxLatchImage(scan->camHandles[scan->camSelect], // cam handle
+        sxExposeImage(scan->camHandles[scan->camSelect], // cam handle
                      SXCCD_EXP_FLAGS_TDI |
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                      SXCCD_IMAGE_HEAD, // main ccd
@@ -807,7 +789,10 @@ wxThread::ExitCode ScanThread::Entry()
                      scan->ccdFrameWidth, // width
                      scan->ccdBinY, // height
                      scan->ccdBinX, // xbin
-                     scan->ccdBinY); // ybin
+                     scan->ccdBinY, // ybin
+                     scan->tdiExposure - sw.Time()); // msec
+        wxMilliSleep(scan->tdiExposure - sw.Time() - 1);
+        sw.Start(0);
         sxReadImage(scan->camHandles[scan->camSelect], // cam handle
                     ccdRow, //pixbuf
                     scan->ccdBinWidth); // pix count
@@ -997,8 +982,8 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
     {
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         ENABLE_HIGH_RES_TIMER();
-        trackWatch = new wxStopWatch();
         tdiTimer.StartOnce(ALIGN_EXP);
+        trackWatch = new wxStopWatch();
         if (scanImage)
             delete scanImage;
         scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
