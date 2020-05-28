@@ -772,6 +772,8 @@ void ScanFrame::DoAlign()
 ScanThread::ScanThread(ScanFrame *param) : wxThread(wxTHREAD_JOINABLE)
 {
     scan = param;
+    Create();
+    SetPriority(wxPRIORITY_MAX); // Make it as real-time as possible
 }
 wxThread::ExitCode ScanThread::Entry()
 {
@@ -802,35 +804,46 @@ wxThread::ExitCode ScanThread::Entry()
 }
 void ScanFrame::DoTDI()
 {
-    int winWidth, winHeight;
-    GetClientSize(&winWidth, &winHeight);
-    if (winWidth > 0 && winHeight > 0)
+    //
+    // Playing fast and loose with tdiRow and tdiLength. Grab a copy in case
+    // it gets updated in ScanThread causing fault in final row
+    //
+    int currentRow = tdiRow;
+    if (currentRow < tdiLength)
     {
-        int pixelMax       = MIN_PIX;
-        int pixelMin       = MAX_PIX;
-        unsigned char *rgb = scanImage->GetData();
-        uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((tdiRow < ccdBinHeight) ? ccdBinHeight - 1 : tdiRow)];
-        for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        int winWidth, winHeight;
+        GetClientSize(&winWidth, &winHeight);
+        if (winWidth > 0 && winHeight > 0)
         {
-            uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
-            for (unsigned x = 0; x < ccdBinHeight; x++)
+            int pixelMax       = MIN_PIX;
+            int pixelMin       = MAX_PIX;
+            unsigned char *rgb = scanImage->GetData();
+            uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight) ? ccdBinHeight - 1 : currentRow)];
+            for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
             {
-                if (*m16 > pixelMax) pixelMax = *m16;
-                if (*m16 < pixelMin) pixelMin = *m16;
-                rgb[0] = redLUT[LUT_INDEX(*m16)];
-                rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
-                rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
-                rgb   += 3;
-                m16   -= ccdBinWidth;
+                uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
+                for (unsigned x = 0; x < ccdBinHeight; x++)
+                {
+                    if (*m16 > pixelMax) pixelMax = *m16;
+                    if (*m16 < pixelMin) pixelMin = *m16;
+                    rgb[0] = redLUT[LUT_INDEX(*m16)];
+                    rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
+                    rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
+                    rgb   += 3;
+                    m16   -= ccdBinWidth;
+                }
             }
+            calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
+            wxClientDC dc(this);
+            wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+            dc.DrawBitmap(bitmap, 0, 0);
         }
-        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
-        wxClientDC dc(this);
-        wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
-        dc.DrawBitmap(bitmap, 0, 0);
     }
-    if (tdiRow >= tdiLength)
+    else
     {
+        //
+        // All done.
+        //
         tdiTimer.Stop();
         DISABLE_HIGH_RES_TIMER();
         tdiState = STATE_IDLE;
@@ -964,7 +977,6 @@ void ScanFrame::StartTDI()
     tdiState     = STATE_SCANNING;
     ENABLE_HIGH_RES_TIMER();
     tdiThread = new ScanThread(this);
-    //tdiThread->SetPriority(wxPRIORITY_MAX); // Make it as real-time as possible
     tdiThread->Run();
     tdiTimer.Start(max(binExposure, 1000)); // Don't update screen more than once a second
 }
