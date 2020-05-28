@@ -43,6 +43,9 @@
 #define TRACK_STAR_RADIUS   200 // Tracking star max radius in microns
 #define TRACK_STAR_SIGMA    1.0
 #define ALIGN_EXP           1000
+#define SCAN_OK             ((wxThread::ExitCode)0)
+#define SCAN_ERR_TIME       ((wxThread::ExitCode)-1)
+#define SCAN_ERR_CAMERA     ((wxThread::ExitCode)-2)
 #define MAX_WHITE           65535
 #define INC_BLACK           1024
 #define MIN_BLACK           0
@@ -130,8 +133,6 @@ static void calcCentroid(int width, int height, uint16_t *pixels, int x, int y, 
         *x_centroid /= sum;
         *y_centroid /= sum;
     }
-    else
-        fprintf(stderr, "calcCentroid failed on pixel min test\n");
 }
 static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_centroid, float *y_centroid, int x_range, int y_range, int *x_max_radius, int *y_max_radius, float sigs)
 {
@@ -207,11 +208,7 @@ static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_c
                             y = (int)(*y_centroid + 0.5);
                             calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
                         }
-                        else
-                            fprintf(stderr, "findBestCentroid failed on centroid radius test\n");
                     }
-                    else
-                        fprintf(stderr, "findBestCentroid skipped hot pixel\n");
                 }
             }
         }
@@ -332,6 +329,7 @@ private:
     void OnAbout(wxCommandEvent& event);
     void OnBackground(wxEraseEvent& event);
     void OnPaint(wxPaintEvent& event);
+    void OnClose(wxCloseEvent& event);
     wxDECLARE_EVENT_TABLE();
 };
 enum
@@ -375,6 +373,7 @@ wxBEGIN_EVENT_TABLE(ScanFrame, wxFrame)
     EVT_MENU(wxID_EXIT,     ScanFrame::OnExit)
     EVT_ERASE_BACKGROUND(   ScanFrame::OnBackground)
     EVT_PAINT(              ScanFrame::OnPaint)
+    EVT_CLOSE(              ScanFrame::OnClose)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(ScanApp);
 void ScanApp::OnInitCmdLine(wxCmdLineParser &parser)
@@ -675,9 +674,15 @@ void ScanFrame::DoAlign()
                  ccdFrameHeight, // height
                  1,  // xbin
                  1); // ybin
-    sxReadImage(camHandles[camSelect], // cam handle
-                ccdFrame, //pixbuf
-                ccdPixelCount); // pix count
+    if (!sxReadImage(camHandles[camSelect], // cam handle
+                     ccdFrame, //pixbuf
+                     ccdPixelCount)) // pix count
+    {
+        wxCommandEvent event; // Bogus event to make compiler happy
+        OnStop(event);
+        wxMessageBox("Camera Error", "SX TDI Alignment", wxOK | wxICON_INFORMATION);
+        return;
+    }
     sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.StartOnce(ALIGN_EXP);
     int xRadius = TRACK_STAR_RADIUS / ccdPixelHeight;    // Centroid radius
@@ -735,6 +740,7 @@ void ScanFrame::DoAlign()
             wxCommandEvent event; // Bogus event to make compiler happy
             OnStop(event);
             wxMessageBox("Tracking Star Lost", "SX TDI Alignment", wxOK | wxICON_INFORMATION);
+            return;
         }
     }
     int winWidth, winHeight;
@@ -777,11 +783,18 @@ ScanThread::ScanThread(ScanFrame *param) : wxThread(wxTHREAD_JOINABLE)
 }
 wxThread::ExitCode ScanThread::Entry()
 {
+    ExitCode scanErr = SCAN_OK;
     uint16_t *ccdRow = scan->tdiFrame;
     sxClearImage(scan->camHandles[scan->camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     wxStopWatch sw;
     do
     {
+        int deltaTime = scan->tdiExposure - sw.Time();
+        if (deltaTime < 1)
+        {
+            scanErr = SCAN_ERR_TIME;
+            break;
+        }
         sxExposeImage(scan->camHandles[scan->camSelect], // cam handle
                      SXCCD_EXP_FLAGS_TDI |
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
@@ -792,15 +805,21 @@ wxThread::ExitCode ScanThread::Entry()
                      scan->ccdBinY, // height
                      scan->ccdBinX, // xbin
                      scan->ccdBinY, // ybin
-                     scan->tdiExposure - sw.Time()); // msec
-        wxMilliSleep(scan->tdiExposure - sw.Time() - 1);
+                     deltaTime); // msec
+        if ((deltaTime = scan->tdiExposure - sw.Time() - 1) > 0)
+            wxMilliSleep(deltaTime);
         sw.Start(0);
-        sxReadImage(scan->camHandles[scan->camSelect], // cam handle
-                    ccdRow, //pixbuf
-                    scan->ccdBinWidth); // pix count
+        if (!sxReadImage(scan->camHandles[scan->camSelect], // cam handle
+                         ccdRow, //pixbuf
+                         scan->ccdBinWidth)) // pix count
+        {
+            scanErr = SCAN_ERR_CAMERA;
+            break;
+        }
         ccdRow += scan->ccdBinWidth;
     } while (++(scan->tdiRow) < scan->tdiLength);
-    return 0;
+    scan->tdiLength = scan->tdiRow; // Signal complete if errored out, nop if ok
+    return scanErr;
 }
 void ScanFrame::DoTDI()
 {
@@ -845,20 +864,40 @@ void ScanFrame::DoTDI()
         // All done.
         //
         tdiTimer.Stop();
-        DISABLE_HIGH_RES_TIMER();
         tdiState = STATE_IDLE;
         SetTitle(wxT("SX TDI"));
-        tdiThread->Wait();
+        wxThread::ExitCode scanErr = tdiThread->Wait();
         delete tdiThread;
+        DISABLE_HIGH_RES_TIMER();
+        if (scanErr == SCAN_ERR_TIME)
+            wxMessageBox("Miniumum Timing Error", "Scan Error", wxOK | wxICON_INFORMATION);
+        if (scanErr == SCAN_ERR_CAMERA)
+            wxMessageBox("Camera Error", "Scan Error", wxOK | wxICON_INFORMATION);
+        if (tdiRow < ccdBinHeight)
+        {
+            //
+            // Don't bother if less than a full frame Image
+            //
+            free(tdiFrame);
+            tdiFrame     = NULL;
+            tdiFileSaved = true;
+        }
         if (autonomous)
         {
-            char filename[255];
-            char creator[] = "sxTDI";
-            char camera[]  = "StarLight Xpress Camera";
-            strcpy(filename, tdiFileName.c_str());
-            tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdBinWidth, tdiLength, tdiExposure, creator, camera) >= 0;
-            delete scanImage;
-            scanImage = NULL;
+            if (tdiFrame)
+            {
+                char filename[255];
+                char creator[] = "sxTDI";
+                char camera[]  = "StarLight Xpress Camera";
+                strcpy(filename, tdiFileName.c_str());
+                tdiFileSaved = fitsWrite(filename,
+                                         (unsigned char *)&tdiFrame[ccdBinWidth * ccdBinHeight],
+                                         ccdBinWidth,
+                                         tdiLength - ccdBinHeight,
+                                         tdiExposure,
+                                         creator,
+                                         camera) >= 0;
+            }
             Close(true);
         }
     }
@@ -1047,14 +1086,26 @@ void ScanFrame::OnStop(wxCommandEvent& event)
     if (tdiTimer.IsRunning())
     {
         tdiTimer.Stop();
-        delete trackWatch;
-        trackWatch = NULL;
-        if (tdiState == STATE_SCANNING)
+        if (tdiState == STATE_ALIGNING)
+        {
+            delete trackWatch;
+            trackWatch = NULL;
+        }
+        else if (tdiState == STATE_SCANNING)
         {
             tdiLength = tdiRow;
             tdiThread->Wait();
             delete tdiThread;
             tdiThread = NULL;
+            if (tdiRow < ccdBinHeight)
+            {
+                //
+                // Don't bother if less than a full frame Image
+                //
+                free(tdiFrame);
+                tdiFrame     = NULL;
+                tdiFileSaved = true;
+            }
         }
         else
         {
@@ -1093,37 +1144,73 @@ void ScanFrame::OnSave(wxCommandEvent& event)
                 tdiFileName  = dlg.GetFilename();
                 strcpy(filename, tdiFilePath.c_str());
                 printf("Saving to file %s\n", filename);
-                tdiFileSaved = fitsWrite(filename, (unsigned char *)tdiFrame, ccdBinWidth, tdiLength, tdiExposure, creator, camera) >= 0;
+                tdiFileSaved = fitsWrite(filename,
+                                         (unsigned char *)&tdiFrame[ccdBinWidth * ccdBinHeight],
+                                         ccdBinWidth,
+                                         tdiLength - ccdBinHeight,
+                                         tdiExposure,
+                                         creator,
+                                         camera) >= 0;
             }
         }
         else
             wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
     }
 }
-void ScanFrame::OnExit(wxCommandEvent& event)
+void ScanFrame::OnClose(wxCloseEvent& event)
 {
-    if (tdiState == STATE_SCANNING)
+    if (event.CanVeto() && tdiState == STATE_SCANNING && wxMessageBox("Cancel scan in progress?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxNO)
     {
-        if (wxMessageBox("Cancel scan in progress?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-           return;
-        tdiLength = tdiRow;
-        tdiThread->Wait();
-        delete tdiThread;
-        tdiThread = NULL;
-    }
-    else if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Exit without saving image?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        event.Veto();
         return;
+    }
+    if (tdiTimer.IsRunning())
+    {
+        tdiTimer.Stop();
+        if (tdiState == STATE_ALIGNING)
+        {
+            delete trackWatch;
+            trackWatch = NULL;
+        }
+        else if (tdiState == STATE_SCANNING)
+        {
+            tdiLength = tdiRow;
+            tdiThread->Wait();
+            delete tdiThread;
+            tdiThread = NULL;
+            if (tdiRow < ccdBinHeight)
+            {
+                //
+                // Don't bother if less than a full frame Image
+                //
+                free(tdiFrame);
+                tdiFrame     = NULL;
+                tdiFileSaved = true;
+            }
+        }
+        DISABLE_HIGH_RES_TIMER();
+        tdiState = STATE_IDLE;
+    }
+    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Save image before exiting?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxYES)
+    {
+        wxCommandEvent eventSave;
+        OnSave(eventSave);
+    }
     if (scanImage != NULL)
     {
         delete scanImage;
         scanImage = NULL;
     }
-    Close(true);
 	if (camCount)
 	{
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+    Destroy();
+}
+void ScanFrame::OnExit(wxCommandEvent& event)
+{
+    Close(false);
 }
 void ScanFrame::OnFilter(wxCommandEvent& event)
 {

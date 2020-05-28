@@ -167,6 +167,7 @@ private:
     void OnExposureReset(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
+    void OnClose(wxCloseEvent& event);
     wxDECLARE_EVENT_TABLE();
 };
 enum
@@ -213,6 +214,7 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_EXPOSE_RST, FocusFrame::OnExposureReset)
     EVT_MENU(wxID_ABOUT,    FocusFrame::OnAbout)
     EVT_MENU(wxID_EXIT,     FocusFrame::OnExit)
+    EVT_CLOSE(              FocusFrame::OnClose)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(FocusApp);
 void FocusApp::OnInitCmdLine(wxCmdLineParser &parser)
@@ -458,9 +460,13 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
                      1); // ybin
         pixCount = FRAMEBUF_COUNT(zoomWidth, zoomHeight, 1, 1);
     }
-    sxReadImage(camHandles[camSelect], // cam handle
-                ccdFrame, //pixbuf
-                pixCount); // pix count
+    if (!sxReadImage(camHandles[camSelect], // cam handle
+                     ccdFrame, //pixbuf
+                     pixCount)) // pix count
+     {
+         wxMessageBox("Camera Error", "SX TDI Alignment", wxOK | wxICON_INFORMATION);
+         return;
+     }
     /*
      * Convert 16 bit samples to 24 BPP image
      */
@@ -596,14 +602,20 @@ void FocusFrame::OnExposureReset(wxCommandEvent& event)
 {
     focusExposure = MIN_EXPOSURE;
 }
-void FocusFrame::OnExit(wxCommandEvent& event)
+void FocusFrame::OnClose(wxCloseEvent& event)
 {
-    Close(true);
+    if (focusTimer.IsRunning())
+        focusTimer.Stop();
 	if (camCount)
 	{
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+    Destroy();
+}
+void FocusFrame::OnExit(wxCommandEvent& event)
+{
+    Close(true);
 }
 void FocusFrame::OnAbout(wxCommandEvent& event)
 {
