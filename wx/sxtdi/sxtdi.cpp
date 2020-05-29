@@ -730,7 +730,7 @@ void ScanFrame::DoAlign()
         {
             if (trackStarInitialY > trackStarY)
             {
-                tdiExposure = (trackTime - trackInitialTime) / (trackStarInitialY - trackStarY);
+                tdiExposure = (trackTime - trackInitialTime) / (trackStarInitialY - trackStarY) + 0.5;
                 tdiScanRate = 1000.0 / tdiExposure;
                 numFrames++;
             }
