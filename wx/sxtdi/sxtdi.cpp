@@ -300,8 +300,8 @@ protected:
     float          pixelGamma;
     bool           pixelFilter;
     volatile int   tdiLength, tdiRow;
-    int            tdiExposure, tdiMinutes, numFrames;
-    float          tdiScanRate;
+    int            tdiMinutes, numFrames;
+    float          tdiScanRate, tdiExposure, binExposure;
 private:
     float          trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
     wxStopWatch   *trackWatch;
@@ -521,7 +521,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     ccdBinX     = initialBinX;
     ccdBinY     = initialBinY;
     tdiScanRate = initialRate;
-    tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0;
+    tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0.0;
     pixelGamma  = 1.0;
     pixelFilter = false;
     ccdFrame    = NULL;
@@ -572,7 +572,7 @@ bool ScanFrame::ConnectCamera(int index)
         SetClientSize(winWidth, winHeight);
     }
     SetStatusText(statusText, 0);
-    if (tdiExposure > 0)
+    if (tdiExposure > 0.0)
         sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
     else
         sprintf(statusText, "Rate: -.-- row/s");
@@ -604,7 +604,7 @@ void ScanFrame::OnConnect(wxCommandEvent& event)
 							  CamChoices);
 		if (dlg.ShowModal() == wxID_OK )
 		{
-			tdiExposure = 0;
+			tdiExposure = 0.0;
 			tdiScanRate = 0.0;
 			ConnectCamera(dlg.GetSelection());
 		}
@@ -730,7 +730,7 @@ void ScanFrame::DoAlign()
         {
             if (trackStarInitialY > trackStarY)
             {
-                tdiExposure = (trackTime - trackInitialTime) / (trackStarInitialY - trackStarY) + 0.5;
+                tdiExposure = (trackTime - trackInitialTime) / (trackStarInitialY - trackStarY);
                 tdiScanRate = 1000.0 / tdiExposure;
                 numFrames++;
             }
@@ -787,28 +787,36 @@ wxThread::ExitCode ScanThread::Entry()
     uint16_t *ccdRow = scan->tdiFrame;
     sxClearImage(scan->camHandles[scan->camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     wxStopWatch sw;
+    double rowTime = scan->binExposure; // Keep high precision running row time
     do
     {
-        int deltaTime = scan->tdiExposure - sw.Time();
+        memset(ccdRow, 0, sizeof(uint16_t) * scan->ccdBinWidth); // Touch row in case swapped out
+        int deltaTime = rowTime - sw.Time();
         if (deltaTime < 1)
-        {
-            scanErr = SCAN_ERR_TIME;
-            break;
-        }
-        sxExposeImage(scan->camHandles[scan->camSelect], // cam handle
-                     SXCCD_EXP_FLAGS_TDI |
-                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                     SXCCD_IMAGE_HEAD, // main ccd
-                     0, // xoffset
-                     0, // yoffset
-                     scan->ccdFrameWidth, // width
-                     scan->ccdBinY, // height
-                     scan->ccdBinX, // xbin
-                     scan->ccdBinY, // ybin
-                     deltaTime); // msec
-        if ((deltaTime = scan->tdiExposure - sw.Time() - 1) > 0)
+            sxLatchImage(scan->camHandles[scan->camSelect], // cam handle
+                         SXCCD_EXP_FLAGS_TDI |
+                         SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                         SXCCD_IMAGE_HEAD, // main ccd
+                         0, // xoffset
+                         0, // yoffset
+                         scan->ccdFrameWidth, // width
+                         scan->ccdBinY, // height
+                         scan->ccdBinX, // xbin
+                         scan->ccdBinY); // ybin
+        else
+            sxExposeImage(scan->camHandles[scan->camSelect], // cam handle
+                         SXCCD_EXP_FLAGS_TDI |
+                         SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                         SXCCD_IMAGE_HEAD, // main ccd
+                         0, // xoffset
+                         0, // yoffset
+                         scan->ccdFrameWidth, // width
+                         scan->ccdBinY, // height
+                         scan->ccdBinX, // xbin
+                         scan->ccdBinY, // ybin
+                         deltaTime); // msec
+        if ((deltaTime = rowTime - sw.Time() - 1) > 0)
             wxMilliSleep(deltaTime);
-        sw.Start(0);
         if (!sxReadImage(scan->camHandles[scan->camSelect], // cam handle
                          ccdRow, //pixbuf
                          scan->ccdBinWidth)) // pix count
@@ -816,7 +824,8 @@ wxThread::ExitCode ScanThread::Entry()
             scanErr = SCAN_ERR_CAMERA;
             break;
         }
-        ccdRow += scan->ccdBinWidth;
+        rowTime += scan->binExposure;
+        ccdRow  += scan->ccdBinWidth;
     } while (++(scan->tdiRow) < scan->tdiLength);
     scan->tdiLength = scan->tdiRow; // Signal complete if errored out, nop if ok
     return scanErr;
@@ -986,10 +995,9 @@ void ScanFrame::OnBinY(wxCommandEvent& event)
 }
 void ScanFrame::StartTDI()
 {
-    int binExposure;
     if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
         return;
-    if (tdiExposure == 0)
+    if (tdiExposure == 0.0)
     {
         wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
         return;
