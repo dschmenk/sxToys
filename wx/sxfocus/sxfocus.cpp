@@ -46,8 +46,8 @@
 #define MAX_GAMMA       4.0
 #define INC_GAMMA       0.4
 #define INC_EXPOSURE    100
-#define MIN_EXPOSURE    INC_EXPOSURE
-#define MAX_EXPOSURE    (INC_EXPOSURE*50)
+#define MIN_EXPOSURE    10
+#define MAX_EXPOSURE    (INC_EXPOSURE*21)
 #define PIX_BITWIDTH    16
 #define MIN_PIX         0
 #define MAX_PIX         ((1<<PIX_BITWIDTH)-1)
@@ -143,28 +143,26 @@ private:
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
-    bool           pixelFilter;
+    bool           pixelFilter, autoLevels;
     wxTimer        focusTimer;
+    void InitLevels();
     bool ConnectCamera(int index);
     void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
+    void OnAutoLevels(wxCommandEvent& event);
+    void OnResetLevels(wxCommandEvent& event);
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
     void OnContrastInc(wxCommandEvent& event);
     void OnContrastDec(wxCommandEvent& event);
-    void OnContrastReset(wxCommandEvent& event);
     void OnBrightnessInc(wxCommandEvent& event);
     void OnBrightnessDec(wxCommandEvent& event);
-    void OnBrightnessReset(wxCommandEvent& event);
-    void OnAutoLevels(wxCommandEvent& event);
     void OnGammaInc(wxCommandEvent& event);
     void OnGammaDec(wxCommandEvent& event);
-    void OnGammaReset(wxCommandEvent& event);
     void OnExposureInc(wxCommandEvent& event);
     void OnExposureDec(wxCommandEvent& event);
-    void OnExposureReset(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
@@ -176,45 +174,39 @@ enum
     ID_CONNECT,
     ID_OVERRIDE,
     ID_FILTER,
+    ID_LEVEL_AUTO,
+    ID_LEVEL_RESET,
     ID_ZOOM_IN,
     ID_ZOOM_OUT,
     ID_CONT_INC,
     ID_CONT_DEC,
-    ID_CONT_RST,
     ID_BRITE_INC,
     ID_BRITE_DEC,
-    ID_BRITE_RST,
-    ID_LEVEL_AUTO,
     ID_GAMMA_INC,
     ID_GAMMA_DEC,
-    ID_GAMMA_RST,
     ID_EXPOSE_INC,
     ID_EXPOSE_DEC,
-    ID_EXPOSE_RST,
 };
 wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
-    EVT_TIMER(ID_TIMER,     FocusFrame::OnTimer)
-    EVT_MENU(ID_CONNECT,    FocusFrame::OnConnect)
-    EVT_MENU(ID_OVERRIDE,   FocusFrame::OnOverride)
-    EVT_MENU(ID_FILTER,     FocusFrame::OnFilter)
-    EVT_MENU(ID_ZOOM_IN,    FocusFrame::OnZoomIn)
-    EVT_MENU(ID_ZOOM_OUT,   FocusFrame::OnZoomOut)
-    EVT_MENU(ID_CONT_INC,   FocusFrame::OnContrastInc)
-    EVT_MENU(ID_CONT_DEC,   FocusFrame::OnContrastDec)
-    EVT_MENU(ID_CONT_RST,   FocusFrame::OnContrastReset)
-    EVT_MENU(ID_BRITE_INC,  FocusFrame::OnBrightnessInc)
-    EVT_MENU(ID_BRITE_DEC,  FocusFrame::OnBrightnessDec)
-    EVT_MENU(ID_BRITE_RST,  FocusFrame::OnBrightnessReset)
-    EVT_MENU(ID_LEVEL_AUTO, FocusFrame::OnAutoLevels)
-    EVT_MENU(ID_GAMMA_INC,  FocusFrame::OnGammaInc)
-    EVT_MENU(ID_GAMMA_DEC,  FocusFrame::OnGammaDec)
-    EVT_MENU(ID_GAMMA_RST,  FocusFrame::OnGammaReset)
-    EVT_MENU(ID_EXPOSE_INC, FocusFrame::OnExposureInc)
-    EVT_MENU(ID_EXPOSE_DEC, FocusFrame::OnExposureDec)
-    EVT_MENU(ID_EXPOSE_RST, FocusFrame::OnExposureReset)
-    EVT_MENU(wxID_ABOUT,    FocusFrame::OnAbout)
-    EVT_MENU(wxID_EXIT,     FocusFrame::OnExit)
-    EVT_CLOSE(              FocusFrame::OnClose)
+    EVT_TIMER(ID_TIMER,      FocusFrame::OnTimer)
+    EVT_MENU(ID_CONNECT,     FocusFrame::OnConnect)
+    EVT_MENU(ID_OVERRIDE,    FocusFrame::OnOverride)
+    EVT_MENU(ID_FILTER,      FocusFrame::OnFilter)
+    EVT_MENU(ID_LEVEL_AUTO,  FocusFrame::OnAutoLevels)
+    EVT_MENU(ID_LEVEL_RESET, FocusFrame::OnResetLevels)
+    EVT_MENU(ID_ZOOM_IN,     FocusFrame::OnZoomIn)
+    EVT_MENU(ID_ZOOM_OUT,    FocusFrame::OnZoomOut)
+    EVT_MENU(ID_CONT_INC,    FocusFrame::OnContrastInc)
+    EVT_MENU(ID_CONT_DEC,    FocusFrame::OnContrastDec)
+    EVT_MENU(ID_BRITE_INC,   FocusFrame::OnBrightnessInc)
+    EVT_MENU(ID_BRITE_DEC,   FocusFrame::OnBrightnessDec)
+    EVT_MENU(ID_GAMMA_INC,   FocusFrame::OnGammaInc)
+    EVT_MENU(ID_GAMMA_DEC,   FocusFrame::OnGammaDec)
+    EVT_MENU(ID_EXPOSE_INC,  FocusFrame::OnExposureInc)
+    EVT_MENU(ID_EXPOSE_DEC,  FocusFrame::OnExposureDec)
+    EVT_MENU(wxID_ABOUT,     FocusFrame::OnAbout)
+    EVT_MENU(wxID_EXIT,      FocusFrame::OnExit)
+    EVT_CLOSE(               FocusFrame::OnClose)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(FocusApp);
 void FocusApp::OnInitCmdLine(wxCmdLineParser &parser)
@@ -283,51 +275,53 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER
-    menuCamera->Append(ID_OVERRIDE,   wxT("&Override Camera..."));
+    menuCamera->Append(ID_OVERRIDE,   wxT("&Set Camera Model..."));
 #endif
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
-    wxMenu *menuFocus = new wxMenu;
-    menuFocus->AppendCheckItem(ID_FILTER, wxT("Red Filter\tR"));
-    menuFocus->Append(ID_ZOOM_IN,    wxT("Zoom In\t="));
-    menuFocus->Append(ID_ZOOM_OUT,   wxT("Zoom Out\t-"));
-    menuFocus->Append(ID_CONT_INC,   wxT("Contrast Inc\t]"));
-    menuFocus->Append(ID_CONT_DEC,   wxT("Contrast Dec\t["));
-    menuFocus->Append(ID_CONT_RST,   wxT("Contrast Reset\t\\"));
-    menuFocus->Append(ID_BRITE_INC,  wxT("Brightness Inc\t}"));
-    menuFocus->Append(ID_BRITE_DEC,  wxT("Brightness Dec\t{"));
-    menuFocus->Append(ID_BRITE_RST,  wxT("Brightness Reset\t|"));
-    menuFocus->Append(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
-    menuFocus->Append(ID_GAMMA_INC,  wxT("Gamma Inc\t>"));
-    menuFocus->Append(ID_GAMMA_DEC,  wxT("Gamma Dec\t<"));
-    menuFocus->Append(ID_GAMMA_RST,  wxT("Gamma Reset\t?"));
-    menuFocus->Append(ID_EXPOSE_INC, wxT("Exposure Inc\t."));
-    menuFocus->Append(ID_EXPOSE_DEC, wxT("Exposure Dec\t,"));
-    menuFocus->Append(ID_EXPOSE_RST, wxT("Exposure Reset\t/"));
+    wxMenu *menuView = new wxMenu;
+    menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
+    menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
+    menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tSPACE"));
+    menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tRIGHT"));
+    menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tLEFT"));
+    menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tUP"));
+    menuView->Append(ID_EXPOSE_DEC,          wxT("Exposure Dec\tDOWN"));
+    menuView->Append(ID_CONT_INC,            wxT("Contrast Inc\tPGUP"));
+    menuView->Append(ID_CONT_DEC,            wxT("Contrast Dec\tPGDN"));
+    menuView->Append(ID_BRITE_INC,           wxT("Brightness Inc\tHOME"));
+    menuView->Append(ID_BRITE_DEC,           wxT("Brightness Dec\tEND"));
+    menuView->Append(ID_GAMMA_INC,           wxT("Gamma Inc\tINS"));
+    menuView->Append(ID_GAMMA_DEC,           wxT("Gamma Dec\tDEL"));
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
     menuBar->Append(menuCamera, wxT("&Camera"));
-    menuBar->Append(menuFocus, wxT("&Focus"));
-    menuBar->Append(menuHelp, wxT("&Help"));
+    menuBar->Append(menuView,   wxT("&View"));
+    menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
     CreateStatusBar(4);
-    pixelGamma  = 1.0;
     pixelFilter = false;
     ccdFrame    = NULL;
     camCount    = sxProbe(camHandles, camParams, camUSBType);
+    InitLevels();
     ConnectCamera(initialCamIndex);
+}
+void FocusFrame::InitLevels()
+{
+    focusExposure = MIN_EXPOSURE + INC_EXPOSURE;
+    pixelGamma    = 1.0;
+    pixelMin      = MAX_WHITE;
+    pixelMax      = MIN_BLACK;
+    pixelBlack    = MIN_BLACK;
+    pixelWhite    = MAX_WHITE;
+    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
 bool FocusFrame::ConnectCamera(int index)
 {
     char statusText[40];
     int focusWinWidth, focusWinHeight;
-    calcRamp(MIN_PIX, MAX_PIX, 1.0, false);
-    focusExposure = MIN_EXPOSURE;
-    pixelMin      = MAX_WHITE;
-    pixelMax      = MIN_BLACK;
-    pixelBlack    = MIN_BLACK;
-    pixelWhite    = MAX_WHITE;
+    InitLevels();
     if (ccdFrame)
         free(ccdFrame);
     if (camCount)
@@ -395,7 +389,10 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
     if (dlg.ShowModal() == wxID_OK )
         ConnectCamera(dlg.GetSelection());
     else if (camSelect)
+    {
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         focusTimer.StartOnce(focusExposure);
+    }
 }
 void FocusFrame::OnOverride(wxCommandEvent& event)
 {
@@ -422,7 +419,10 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
         ConnectCamera(camSelect);
     }
     else
+    {
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         focusTimer.StartOnce(focusExposure);
+    }
 #endif
 }
 void FocusFrame::OnTimer(wxTimerEvent& event)
@@ -475,6 +475,19 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     uint16_t      *m16 = ccdFrame;
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
+    if (autoLevels)
+    {
+        for (int l = 0; l < zoomHeight*zoomWidth; l++)
+        {
+            if (*m16 < pixelMin) pixelMin = *m16;
+            if (*m16 > pixelMax) pixelMax = *m16;
+            m16++;
+        }
+        m16        = ccdFrame; // Reset CCD image pointer
+        pixelBlack = pixelMin;
+        pixelWhite = pixelMax;
+        calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
+    }
     for (int y = 0; y < zoomHeight; y++)
         for (int x = 0; x < zoomWidth; x++)
         {
@@ -501,7 +514,7 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     /*
      * Prep next frame
      */
-    if (focusExposure < 1000)
+    if (focusExposure < MAX_EXPOSURE)
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     focusTimer.StartOnce(focusExposure);
 }
@@ -509,6 +522,14 @@ void FocusFrame::OnFilter(wxCommandEvent& event)
 {
     pixelFilter = event.IsChecked();
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
+}
+void FocusFrame::OnAutoLevels(wxCommandEvent& event)
+{
+    autoLevels = event.IsChecked();
+}
+void FocusFrame::OnResetLevels(wxCommandEvent& event)
+{
+    InitLevels();
 }
 void FocusFrame::OnZoomIn(wxCommandEvent& event)
 {
@@ -547,11 +568,6 @@ void FocusFrame::OnContrastDec(wxCommandEvent& event)
     if (pixelWhite > MAX_WHITE) pixelWhite = MAX_WHITE;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnContrastReset(wxCommandEvent& event)
-{
-    pixelWhite = MAX_WHITE;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
 void FocusFrame::OnBrightnessInc(wxCommandEvent& event)
 {
     pixelBlack -= INC_BLACK;
@@ -564,17 +580,6 @@ void FocusFrame::OnBrightnessDec(wxCommandEvent& event)
     if (pixelBlack >= pixelWhite) pixelBlack = pixelWhite - 1;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnBrightnessReset(wxCommandEvent& event)
-{
-    pixelBlack = MIN_BLACK;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void FocusFrame::OnAutoLevels(wxCommandEvent& event)
-{
-    pixelBlack = pixelMin;
-    pixelWhite = pixelMax;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
 void FocusFrame::OnGammaInc(wxCommandEvent& event)
 {
     if (pixelGamma < MAX_GAMMA) pixelGamma += INC_GAMMA;
@@ -585,11 +590,6 @@ void FocusFrame::OnGammaDec(wxCommandEvent& event)
     if (pixelGamma > MIN_GAMMA) pixelGamma -= INC_GAMMA;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnGammaReset(wxCommandEvent& event)
-{
-    pixelGamma = 1.0;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
 void FocusFrame::OnExposureInc(wxCommandEvent& event)
 {
     if (focusExposure < MAX_EXPOSURE) focusExposure += INC_EXPOSURE;
@@ -597,10 +597,6 @@ void FocusFrame::OnExposureInc(wxCommandEvent& event)
 void FocusFrame::OnExposureDec(wxCommandEvent& event)
 {
     if (focusExposure > MIN_EXPOSURE) focusExposure -= INC_EXPOSURE;
-}
-void FocusFrame::OnExposureReset(wxCommandEvent& event)
-{
-    focusExposure = MIN_EXPOSURE;
 }
 void FocusFrame::OnClose(wxCloseEvent& event)
 {

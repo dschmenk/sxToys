@@ -486,7 +486,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT, "&Connnect Camera...");
 #ifndef _MSC_VER
-    menuCamera->Append(ID_OVERRIDE, "&Override Camera...");
+    menuCamera->Append(ID_OVERRIDE, "&Set Camera Model...");
 #endif
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_NEW, "&New\tCtrl-N");
