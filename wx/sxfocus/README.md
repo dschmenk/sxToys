@@ -5,7 +5,7 @@
 - Plug in camera to USB port
 - Launch sxFocus
 
-Real-time images should begin to appear in the Window. Chances are the window will look black at night, or washed out during the day. To quickly get an automatically contrast stretched image, select 'Focus/Auto Levels' from the menu:
+Real-time images should begin to appear in the Window. Chances are the window will look black at night, or washed out during the day. To quickly get an automatically contrast stretched image, select 'View/Auto Levels' from the menu:
 
 ![sxFocus X2](https://github.com/dschmenk/sxToys/blob/master/images/sxfocus-x2.png)
 
