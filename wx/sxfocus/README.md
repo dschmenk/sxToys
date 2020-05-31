@@ -11,7 +11,7 @@ Real-time images should begin to appear in the Window. Chances are the window wi
 
 Daytime focussing may require stopping down the telescope lens to achieve an image that isn't completely washed out.
 
-You will notice that all the 'Focus' menu items have a hot-key. All the options can be driven from the keyboard without modifiers to simplify operation in the dark:
+You will notice that all the 'View' menu items have a hot-key. All the options can be driven from the keyboard without modifiers to simplify operation in the dark:
 
 ![sxFocus Menu](https://github.com/dschmenk/sxToys/blob/master/images/sxfocus-menu.png)
 
