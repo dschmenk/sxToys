@@ -15,9 +15,9 @@ You will notice that all the 'View' menu items have a hot-key. All the options c
 
 ![sxFocus Menu](https://github.com/dschmenk/sxToys/blob/master/images/sxfocus-menu.png)
 
-Instead of selecting 'Focus/Auto Levels' from the menu, you can simply press the 'A' key. Except for challenging objects to focus on, using the 'Auto Levels' is probably the best option. The default exposure is a quick 100 ms, so increasing the exposure duration ('.' key) can help with a dim filled field of stars.
+Instead of selecting 'View/Auto Levels' from the menu, you can simply press the 'A' key. Except for challenging objects to focus on, using the 'Auto Levels' is probably the best option. The default exposure is a quick 10 ms, so increasing the exposure duration (up-arrow key) can help with a dim filled field of stars.
 
-sxFocus uses the on-chip binning and sub-windowing capabilities of the Starlight Xpress cameras to keep the frame rate as high as possible for fast feedback on focus adjustments. 'Zoom In' ('=' key) and 'Zoom Out' ('-' key). When zooming out to the binning modes, 'X2' and 'X4', the camera sensitivity will increase as well as the frame rate. Very useful for finding gross focus in a hurry. Zoom in to see the changes of fine focus, adjusting the brightness, contrast and exposure as necessary:
+sxFocus uses the on-chip binning and sub-windowing capabilities of the Starlight Xpress cameras to keep the frame rate as high as possible for fast feedback on focus adjustments. 'Zoom In' (right-arrow key) and 'Zoom Out' (left-arrow key). When zooming out to the binning modes, 'X2' and 'X4', the camera sensitivity will increase as well as the frame rate. Very useful for finding gross focus in a hurry. Zoom in to see the changes of fine focus, adjusting the brightness, contrast and exposure as necessary:
 
 ![sxFocus 4X](https://github.com/dschmenk/sxToys/blob/master/images/sxfocus-4x.png)
 
