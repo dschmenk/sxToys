@@ -750,13 +750,19 @@ void ScanFrame::DoAlign()
         int pixelMax = MIN_PIX;
         int pixelMin = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
+        uint16_t *m16      = ccdFrame;
+        for (int l = 0; l < ccdFrameWidth*ccdFrameHeight; l++)
+        {
+            if (*m16 < pixelMin) pixelMin = *m16;
+            if (*m16 > pixelMax) pixelMax = *m16;
+            m16++;
+        }
+        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
         for (unsigned y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            uint16_t *m16 = &(ccdFrame[ccdPixelCount - y - 1]);
+            m16 = &(ccdFrame[ccdPixelCount - y - 1]);
             for (unsigned x = 0; x < ccdFrameHeight; x++)
             {
-                if (*m16 > pixelMax) pixelMax = *m16;
-                if (*m16 < pixelMin) pixelMin = *m16;
                 rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
                 rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
                 rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
@@ -764,7 +770,6 @@ void ScanFrame::DoAlign()
                 m16   -= ccdFrameWidth;
             }
         }
-        calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
         wxClientDC dc(this);
         wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
@@ -847,13 +852,19 @@ void ScanFrame::DoTDI()
             int pixelMin       = MAX_PIX;
             unsigned char *rgb = scanImage->GetData();
             uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight) ? ccdBinHeight - 1 : currentRow)];
+            uint16_t *m16      = pixels;
+            for (int l = 0; l < ccdBinWidth*ccdBinHeight; l++)
+            {
+                m16--;
+                if (*m16 < pixelMin) pixelMin = *m16;
+                if (*m16 > pixelMax) pixelMax = *m16;
+            }
+            calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
             for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
             {
-                uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
+                m16 = &pixels[ccdBinWidth - y - 1];
                 for (unsigned x = 0; x < ccdBinHeight; x++)
                 {
-                    if (*m16 > pixelMax) pixelMax = *m16;
-                    if (*m16 < pixelMin) pixelMin = *m16;
                     rgb[0] = redLUT[LUT_INDEX(*m16)];
                     rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
                     rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
@@ -861,7 +872,6 @@ void ScanFrame::DoTDI()
                     m16   -= ccdBinWidth;
                 }
             }
-            calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
             wxClientDC dc(this);
             wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
             dc.DrawBitmap(bitmap, 0, 0);
