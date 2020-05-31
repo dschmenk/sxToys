@@ -852,7 +852,7 @@ void ScanFrame::DoTDI()
             int pixelMin       = MAX_PIX;
             unsigned char *rgb = scanImage->GetData();
             uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight) ? ccdBinHeight - 1 : currentRow)];
-            uint16_t *m16      = pixels;
+            uint16_t *m16      = pixels + ccdBinWidth;
             for (int l = 0; l < ccdBinWidth*ccdBinHeight; l++)
             {
                 m16--;
