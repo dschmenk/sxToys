@@ -55,7 +55,7 @@ To initiate the TDI scanning, select 'Scan/TDI' or press 'T'. sxTDI will display
 
 Once the image fills to the left edge, the image will now shift to the right as new rows are read in from the camera. You should see nice point star images. If you see horizontal streaks, this means one of two things: the scan rate wasn’t measured correctly or the computer can’t keep up with reading the camera. If your rate measurement had stabilized in the align step, then most likely your computer can’t keep up. The image display is very CPU intensive, so again you have two options: increase Y binning or minimize the window. Y binning will halve or quarter the resolution in the scan direction. It will increase the camera sensitivity as well as reduce the workload the computer is doing to display the image. You can also minimize the window, but you won’t be able to watch the scan progress.
 
-If you see vertical streaks instead of point stars, you aren't aligned along the star trails. With wide angles, it may not be possible to completely remove the difference in star tracking from top to bottom.
+If you see vertical streaks instead of point stars, you aren't aligned along the star trails. With wide angles, it may not be possible to completely remove the difference in star tracking from top to bottom, especially for higher declinations.
 
 If you see crescents or diagonals, then you have a combination of the above two.
 
