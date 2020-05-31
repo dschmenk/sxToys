@@ -71,7 +71,7 @@ Make sure you adjust your computer's power settings so it doesn't go to sleep du
 
 If you should start sxTDI before plugging in a camera, or you have multiple cameras connected and want to change which one is being scanned, the 'Camera/Connect Camera..' option will allow you to change which camera is currently attached to the scanning window.
 
-USB 1.1 module users under Linux or MacOS may need to override the camera model should it default to an MX5. For instance, if you have an MX7C connected, the initial focus window may look skewed and show that it is connected to an MX5 (the default for the USB 1.1 module). Simply select the correct camera model from 'Camera/Override Camera...' dialog.
+USB 1.1 module users under Linux or MacOS may need to override the camera model should it default to an MX5. For instance, if you have an MX7C connected, the initial focus window may look skewed and show that it is connected to an MX5 (the default for the USB 1.1 module). Simply select the correct camera model from 'Camera/Set Camera Model...' dialog.
 
 USB 1.1 module users under Windows should follow the process of upgrading the firmware here: https://github.com/dschmenk/sxToys/tree/master/Windows%20Drivers
 
