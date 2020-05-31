@@ -699,7 +699,7 @@ void ScanFrame::DoAlign()
                              ccdFrame,
                              &trackStarX, // centroid coordinate
                              &trackStarY,
-                             ccdFrameWidth / 2, // search range
+                             ccdFrameWidth / 4, // search range in middle/left of frame
                              ccdFrameHeight / 2,
                              &xRadius,
                              &yRadius,
