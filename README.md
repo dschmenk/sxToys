@@ -19,19 +19,19 @@ sxTDI allows Time Delay Integration, or Drift Scanning imaging on many Starlight
 
 Some of the benefits of Time Delay Integration:
 
-  1. Minimal equipment requirements
+    1. Minimal equipment requirements
   
-    - Low end laptop (Windows XP+, Mac OS/X 10.11+, Linux)
+      - Low end laptop (Windows XP+, Mac OS/X 10.11+, Linux)
     
-    - No fancy mount or tripod (no tracking needed)
+      - No fancy mount or tripod (no tracking needed)
     
-    - Small scope or camera lens
+      - Small scope or camera lens
     
-  2. Only small patch of unobstructed sky needed
+    2. Only small patch of unobstructed sky needed
   
-  3. Real-time display of image
+    3. Real-time display of image
   
-  4. Easy to automate
+    4. Easy to automate
 
 ## Test Image
 
