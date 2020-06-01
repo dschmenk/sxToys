@@ -17,6 +17,22 @@ _It should be noted that common belief was that interline CCDs  (like the Sony C
 
 sxTDI allows Time Delay Integration, or Drift Scanning imaging on many Starlight Xpress cameras. There are some tradeoffs between TDI imaging and regular imaging, but one of the most intriguing aspects is being able to watch the image being scanned in real-time, right on the computer display.
 
+Some of the benefits of Time Delay Integration:
+
+  1. Minimal equipment requirements
+  
+    - Low end laptop (Windows XP+, Mac OS/X 10.11+, Linux)
+    
+    - No fancy mount or tripod (no tracking needed)
+    
+    - Small scope or camera lens
+    
+  2. Only small patch of unobstructed sky needed
+  
+  3. Real-time display of image
+  
+  4. Easy to automate
+
 ## Test Image
 
 Here is a sample, unprocessed except for brightness adjustment to bring out the vertical streaking inherent in drift scanning. Using an SXV-H9 camera and Meade 80mm (f/6) refractor (scroll down to check out the M64 and M65 galaxies):
