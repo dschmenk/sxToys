@@ -42,9 +42,9 @@
 #define MIN_BLACK       0
 #define MAX_BLACK       (MAX_WHITE/2)
 #define INC_BLACK       (MAX_BLACK/16)
-#define MIN_GAMMA       0.6
-#define MAX_GAMMA       4.0
-#define INC_GAMMA       0.4
+#define MIN_GAMMA       0.5
+#define MAX_GAMMA       2.5
+#define INC_GAMMA       0.5
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    10
 #define MAX_EXPOSURE    (INC_EXPOSURE*21)
@@ -310,7 +310,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
 void FocusFrame::InitLevels()
 {
     focusExposure = MIN_EXPOSURE + INC_EXPOSURE;
-    pixelGamma    = 1.0;
+    pixelGamma    = 1.5;
     pixelMin      = MAX_WHITE;
     pixelMax      = MIN_BLACK;
     pixelBlack    = MIN_BLACK;
@@ -430,6 +430,8 @@ void FocusFrame::OnTimer(wxTimerEvent& event)
     int zoomWidth, zoomHeight;
     int focusWinWidth, focusWinHeight;
     int pixCount;
+    if (focusExposure == MIN_EXPOSURE)
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     if (focusZoom < 1)
     {
         zoomWidth  = ccdFrameWidth  >> -focusZoom;
