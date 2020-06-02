@@ -365,7 +365,7 @@ bool FocusFrame::ConnectCamera(int index)
     SetStatusText("Bin: X2", 1);
     return camSelect >= 0;
 }
-void FocusFrame::OnConnect(wxCommandEvent& event)
+void FocusFrame::OnConnect(wxCommandEvent& WXUNUSED(event))
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
@@ -394,7 +394,7 @@ void FocusFrame::OnConnect(wxCommandEvent& event)
         focusTimer.StartOnce(focusExposure);
     }
 }
-void FocusFrame::OnOverride(wxCommandEvent& event)
+void FocusFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 {
 #ifndef _MSC_VER
     if (focusTimer.IsRunning())
@@ -425,7 +425,7 @@ void FocusFrame::OnOverride(wxCommandEvent& event)
     }
 #endif
 }
-void FocusFrame::OnTimer(wxTimerEvent& event)
+void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
     int zoomWidth, zoomHeight;
     int focusWinWidth, focusWinHeight;
@@ -529,11 +529,11 @@ void FocusFrame::OnAutoLevels(wxCommandEvent& event)
 {
     autoLevels = event.IsChecked();
 }
-void FocusFrame::OnResetLevels(wxCommandEvent& event)
+void FocusFrame::OnResetLevels(wxCommandEvent& WXUNUSED(event))
 {
     InitLevels();
 }
-void FocusFrame::OnZoomIn(wxCommandEvent& event)
+void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
 {
     char statusText[20];
 
@@ -546,7 +546,7 @@ void FocusFrame::OnZoomIn(wxCommandEvent& event)
         sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
     SetStatusText(statusText, 1);
 }
-void FocusFrame::OnZoomOut(wxCommandEvent& event)
+void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
 {
     char statusText[20];
 
@@ -559,48 +559,48 @@ void FocusFrame::OnZoomOut(wxCommandEvent& event)
         sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
     SetStatusText(statusText, 1);
 }
-void FocusFrame::OnContrastInc(wxCommandEvent& event)
+void FocusFrame::OnContrastInc(wxCommandEvent& WXUNUSED(event))
 {
     pixelWhite = (pixelWhite + pixelBlack) / 2 + 1;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnContrastDec(wxCommandEvent& event)
+void FocusFrame::OnContrastDec(wxCommandEvent& WXUNUSED(event))
 {
     pixelWhite += (pixelWhite - pixelBlack);
     if (pixelWhite > MAX_WHITE) pixelWhite = MAX_WHITE;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnBrightnessInc(wxCommandEvent& event)
+void FocusFrame::OnBrightnessInc(wxCommandEvent& WXUNUSED(event))
 {
     pixelBlack -= INC_BLACK;
     if (pixelBlack < MIN_BLACK) pixelBlack = MIN_BLACK;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnBrightnessDec(wxCommandEvent& event)
+void FocusFrame::OnBrightnessDec(wxCommandEvent& WXUNUSED(event))
 {
     pixelBlack += INC_BLACK;
     if (pixelBlack >= pixelWhite) pixelBlack = pixelWhite - 1;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnGammaInc(wxCommandEvent& event)
+void FocusFrame::OnGammaInc(wxCommandEvent& WXUNUSED(event))
 {
     if (pixelGamma < MAX_GAMMA) pixelGamma += INC_GAMMA;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnGammaDec(wxCommandEvent& event)
+void FocusFrame::OnGammaDec(wxCommandEvent& WXUNUSED(event))
 {
     if (pixelGamma > MIN_GAMMA) pixelGamma -= INC_GAMMA;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
-void FocusFrame::OnExposureInc(wxCommandEvent& event)
+void FocusFrame::OnExposureInc(wxCommandEvent& WXUNUSED(event))
 {
     if (focusExposure < MAX_EXPOSURE) focusExposure += INC_EXPOSURE;
 }
-void FocusFrame::OnExposureDec(wxCommandEvent& event)
+void FocusFrame::OnExposureDec(wxCommandEvent& WXUNUSED(event))
 {
     if (focusExposure > MIN_EXPOSURE) focusExposure -= INC_EXPOSURE;
 }
-void FocusFrame::OnClose(wxCloseEvent& event)
+void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
@@ -611,11 +611,11 @@ void FocusFrame::OnClose(wxCloseEvent& event)
 	}
     Destroy();
 }
-void FocusFrame::OnExit(wxCommandEvent& event)
+void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 {
     Close(true);
 }
-void FocusFrame::OnAbout(wxCommandEvent& event)
+void FocusFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
     wxMessageBox("Starlight Xpress Focusser\nVersion 0.1 Alpha 0\nCopyright (c) 2003-2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
 }

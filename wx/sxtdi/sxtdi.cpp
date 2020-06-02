@@ -111,7 +111,7 @@ static void calcRamp(int black, int white, float gamma, bool filter)
 /*
  * Star registration
  */
-static void calcCentroid(int width, int height, uint16_t *pixels, int x, int y, int x_radius, int y_radius, float *x_centroid, float *y_centroid, int min)
+static void calcCentroid(int width, int WXUNUSED(height), uint16_t *pixels, int x, int y, int x_radius, int y_radius, float *x_centroid, float *y_centroid, int min)
 {
     int   i, j;
     float sum;
@@ -581,7 +581,7 @@ bool ScanFrame::ConnectCamera(int index)
     SetStatusText(statusText, 2);
     return camSelect >= 0;
 }
-void ScanFrame::OnConnect(wxCommandEvent& event)
+void ScanFrame::OnConnect(wxCommandEvent& WXUNUSED(event))
 {
  	if (tdiState == STATE_IDLE)
 	{
@@ -610,7 +610,7 @@ void ScanFrame::OnConnect(wxCommandEvent& event)
 		}
 	}
 }
-void ScanFrame::OnOverride(wxCommandEvent& event)
+void ScanFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 {
 #ifndef _MSC_VER
  	if (tdiState == STATE_IDLE)
@@ -639,10 +639,10 @@ void ScanFrame::OnOverride(wxCommandEvent& event)
 	}
 #endif
 }
-void ScanFrame::OnBackground(wxEraseEvent& event)
+void ScanFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
 {
 }
-void ScanFrame::OnPaint(wxPaintEvent& event)
+void ScanFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
 {
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
@@ -921,7 +921,7 @@ void ScanFrame::DoTDI()
         }
     }
 }
-void ScanFrame::OnTimer(wxTimerEvent& event)
+void ScanFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_SCANNING)
         DoTDI();
@@ -939,12 +939,12 @@ void ScanFrame::GetDuration()
 		return;
 	tdiMinutes = dlg.GetValue() * 60;
 }
-void ScanFrame::OnDuration(wxCommandEvent& event)
+void ScanFrame::OnDuration(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_IDLE)
         GetDuration();
 }
-void ScanFrame::OnRate(wxCommandEvent& event)
+void ScanFrame::OnRate(wxCommandEvent& WXUNUSED(event))
 {
     char rateText[40] = "";
     if (tdiState == STATE_IDLE)
@@ -967,7 +967,7 @@ void ScanFrame::OnRate(wxCommandEvent& event)
         }
     }
 }
-void ScanFrame::OnBinX(wxCommandEvent& event)
+void ScanFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_IDLE)
     {
@@ -985,7 +985,7 @@ void ScanFrame::OnBinX(wxCommandEvent& event)
         }
     }
 }
-void ScanFrame::OnBinY(wxCommandEvent& event)
+void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_IDLE)
     {
@@ -1037,7 +1037,7 @@ void ScanFrame::StartTDI()
     tdiThread->Run();
     tdiTimer.Start(max(binExposure, 1000)); // Don't update screen more than once a second
 }
-void ScanFrame::OnAlign(wxCommandEvent& event)
+void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_ALIGNING)
     {
@@ -1080,7 +1080,7 @@ void ScanFrame::OnAlign(wxCommandEvent& event)
         SetTitle(wxT("SX TDI [Aligning]"));
     }
 }
-void ScanFrame::OnScan(wxCommandEvent& event)
+void ScanFrame::OnScan(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_ALIGNING)
     {
@@ -1099,7 +1099,7 @@ void ScanFrame::OnScan(wxCommandEvent& event)
         SetTitle(wxT("SX TDI [Scanning]"));
     }
 }
-void ScanFrame::OnStop(wxCommandEvent& event)
+void ScanFrame::OnStop(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiTimer.IsRunning())
     {
@@ -1136,7 +1136,7 @@ void ScanFrame::OnStop(wxCommandEvent& event)
         SetTitle(wxT("SX TDI"));
     }
 }
-void ScanFrame::OnNew(wxCommandEvent& event)
+void ScanFrame::OnNew(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_IDLE)
     {
@@ -1146,7 +1146,7 @@ void ScanFrame::OnNew(wxCommandEvent& event)
         tdiFrame = NULL;
     }
 }
-void ScanFrame::OnSave(wxCommandEvent& event)
+void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
     char filename[255];
     char creator[] = "sxTDI";
@@ -1226,7 +1226,7 @@ void ScanFrame::OnClose(wxCloseEvent& event)
 	}
     Destroy();
 }
-void ScanFrame::OnExit(wxCommandEvent& event)
+void ScanFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 {
     Close(false);
 }
@@ -1234,7 +1234,7 @@ void ScanFrame::OnFilter(wxCommandEvent& event)
 {
     pixelFilter = event.IsChecked();
 }
-void ScanFrame::OnGamma(wxCommandEvent& event)
+void ScanFrame::OnGamma(wxCommandEvent& WXUNUSED(event))
 {
     wxSingleChoiceDialog dlg(this,
                           wxT("Gamma:"),
@@ -1246,7 +1246,7 @@ void ScanFrame::OnGamma(wxCommandEvent& event)
         pixelGamma =  GammaValues[dlg.GetSelection()];
     }
 }
-void ScanFrame::OnAbout(wxCommandEvent& event)
+void ScanFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
     wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Alpha 0\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
 }
