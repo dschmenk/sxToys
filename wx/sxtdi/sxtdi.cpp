@@ -41,7 +41,7 @@
 #include <wx/cmdline.h>
 #include "sxtdi.h"
 #define TRACK_STAR_RADIUS   200 // Tracking star max radius in microns
-#define TRACK_STAR_SIGMA    1.0
+#define TRACK_STAR_SIGMA    2.0 // Only track stars 2 sigma over the noise level
 #define ALIGN_EXP           1000
 #define SCAN_OK             ((wxThread::ExitCode)0)
 #define SCAN_ERR_TIME       ((wxThread::ExitCode)-1)
@@ -692,14 +692,14 @@ void ScanFrame::DoAlign()
         //
         // If first frame, identify best candidate for measuring scan rate
         //
-        trackStarX = ccdFrameWidth / 2; // Search left half on image for initial best centroid
-        trackStarY = ccdFrameHeight - 1;
+        trackStarX = ccdFrameWidth / 2;  // Start search in middle quarter of image for best centroid
+        trackStarY = ccdFrameHeight - 1; // Start search in left half of image for best centroid
         if (findBestCentroid(ccdFrameWidth,
                              ccdFrameHeight,
                              ccdFrame,
                              &trackStarX, // centroid coordinate
                              &trackStarY,
-                             ccdFrameWidth / 4, // search range in middle/left of frame
+                             ccdFrameWidth / 8, // search range in middle/left of frame
                              ccdFrameHeight / 2,
                              &xRadius,
                              &yRadius,
@@ -852,19 +852,13 @@ void ScanFrame::DoTDI()
             int pixelMin       = MAX_PIX;
             unsigned char *rgb = scanImage->GetData();
             uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight) ? ccdBinHeight - 1 : currentRow)];
-            uint16_t *m16      = pixels + ccdBinWidth;
-            for (int l = 0; l < ccdBinWidth*ccdBinHeight; l++)
-            {
-                m16--;
-                if (*m16 < pixelMin) pixelMin = *m16;
-                if (*m16 > pixelMax) pixelMax = *m16;
-            }
-            calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
             for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
             {
-                m16 = &pixels[ccdBinWidth - y - 1];
+                uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
                 for (unsigned x = 0; x < ccdBinHeight; x++)
                 {
+                    if (*m16 < pixelMin && *m16 > 0) pixelMin = *m16;
+                    if (*m16 > pixelMax) pixelMax = *m16;
                     rgb[0] = redLUT[LUT_INDEX(*m16)];
                     rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
                     rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
@@ -872,6 +866,7 @@ void ScanFrame::DoTDI()
                     m16   -= ccdBinWidth;
                 }
             }
+            calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter); // Behind a row in ramp updates. Oh well
             wxClientDC dc(this);
             wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
             dc.DrawBitmap(bitmap, 0, 0);
