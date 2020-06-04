@@ -41,8 +41,9 @@
 #include <wx/cmdline.h>
 #include "sxtdi.h"
 #define TRACK_STAR_RADIUS   200 // Tracking star max radius in microns
-#define TRACK_STAR_SIGMA    2.0 // Only track stars 2 sigma over the noise level
+#define TRACK_STAR_SIGMA    1.0 // Only track stars 1 sigma over the noise level
 #define ALIGN_EXP           1000
+#define MIN_SCREEN_UPDATE   1000
 #define SCAN_OK             ((wxThread::ExitCode)0)
 #define SCAN_ERR_TIME       ((wxThread::ExitCode)-1)
 #define SCAN_ERR_CAMERA     ((wxThread::ExitCode)-2)
@@ -616,11 +617,32 @@ void ScanFrame::DoAlign()
         wxClientDC dc(this);
         wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
-        char statusText[40];
-        sprintf(statusText, "Track: %4.3f", trackStarX);
-        SetStatusText(statusText, 2);
-        sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
-        SetStatusText(statusText, 1);
+        if (numFrames)
+        {
+            //
+            // Draw ellipse around best star depicting FWHM
+            //
+            float xScale = (float)winWidth  / (float)ccdFrameWidth;
+            float yScale = (float)winHeight / (float)ccdFrameHeight;
+            xRadius *= xScale * 4;
+            yRadius *= yScale * 4;
+            dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
+            dc.SetBrush(*wxTRANSPARENT_BRUSH);
+            dc.DrawEllipse(trackStarX * xScale - xRadius, trackStarY * yScale - yRadius, xRadius * 2, yRadius * 2);
+        }
+        if (tdiScanRate > 0.0)
+        {
+            char statusText[40];
+            sprintf(statusText, "Track: %4.3f", trackStarX);
+            SetStatusText(statusText, 2);
+            sprintf(statusText, "Rate: %2.3f row/s", tdiScanRate);
+            SetStatusText(statusText, 1);
+        }
+        else
+        {
+            SetStatusText("Track: ----.---", 2);
+            SetStatusText("Rate: --.--- row/s", 1);
+        }
     }
 }
 ScanThread::ScanThread(ScanFrame *param) : wxThread(wxTHREAD_JOINABLE)
@@ -781,6 +803,8 @@ void ScanFrame::OnDuration(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_IDLE)
         GetDuration();
+    else
+        wxBell();
 }
 void ScanFrame::OnRate(wxCommandEvent& WXUNUSED(event))
 {
@@ -804,6 +828,8 @@ void ScanFrame::OnRate(wxCommandEvent& WXUNUSED(event))
             SetStatusText(rateText, 1);
         }
     }
+    else
+        wxBell();
 }
 void ScanFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
 {
@@ -822,6 +848,8 @@ void ScanFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
             SetStatusText(binText, 2);
         }
     }
+    else
+        wxBell();
 }
 void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
 {
@@ -873,7 +901,7 @@ void ScanFrame::StartTDI()
     ENABLE_HIGH_RES_TIMER();
     tdiThread = new ScanThread(this);
     tdiThread->Run();
-    tdiTimer.Start(max(binExposure, 1000)); // Don't update screen more than once a second
+    tdiTimer.Start(max(binExposure, MIN_SCREEN_UPDATE)); // Bound screen update rate
 }
 void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
 {
@@ -917,6 +945,8 @@ void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
         tdiState    = STATE_ALIGNING;
         SetTitle(wxT("SX TDI [Aligning]"));
     }
+    else
+        wxBell();
 }
 void ScanFrame::OnScan(wxCommandEvent& WXUNUSED(event))
 {
@@ -936,6 +966,8 @@ void ScanFrame::OnScan(wxCommandEvent& WXUNUSED(event))
         StartTDI();
         SetTitle(wxT("SX TDI [Scanning]"));
     }
+    else
+        wxBell();
 }
 void ScanFrame::OnStop(wxCommandEvent& WXUNUSED(event))
 {
@@ -1012,6 +1044,8 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
         else
             wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
     }
+    else
+        wxBell();
 }
 void ScanFrame::OnClose(wxCloseEvent& event)
 {
