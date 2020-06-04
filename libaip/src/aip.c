@@ -8,7 +8,7 @@ extern "C" {
  */
 unsigned char redLUT[LUT_SIZE];
 unsigned char blugrnLUT[LUT_SIZE];
-void calcRamp(int black, int white, float gamma, bool filter)
+void calcRamp(int black, int white, float gamma, int filter)
 {
     int pix, offset;
     float scale, recipg, pixClamp;
@@ -51,7 +51,7 @@ void calcCentroid(int width, int height, unsigned short *pixels, int x, int y, i
         *y_centroid /= sum;
     }
 }
-bool findBestCentroid(int width, int height, unsigned short *pixels, float *x_centroid, float *y_centroid, int x_range, int y_range, int *x_max_radius, int *y_max_radius, float sigs)
+int findBestCentroid(int width, int height, unsigned short *pixels, float *x_centroid, float *y_centroid, int x_range, int y_range, int *x_max_radius, int *y_max_radius, float sigs)
 {
     int   i, j, x, y, x_min, x_max, y_min, y_max, x_radius, y_radius;
     int   pixel, pixel_min, pixel_max;
