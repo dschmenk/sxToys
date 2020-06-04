@@ -28,6 +28,7 @@ SXTDI_CXXFLAGS = /M$(__RUNTIME_LIBS_10)$(__DEBUGRUNTIME_4) /DWIN32 \
 	$(__EXCEPTIONSFLAG_12) $(CPPFLAGS) $(CXXFLAGS)
 SXTDI_OBJECTS =  \
 	$(OBJS)\sxtdi.obj $(OBJS)\sxutil.obj $(OBJS)\aip.obj $(OBJS)\fits.obj
+#    $(OBJS)\sxtdi.obj ..\..\libsxccd\sxutil.obj ..\..\libaip\aip.obj $(OBJS)\fits.obj
 SXTDI_RESOURCES =  \
 	$(OBJS)\sxtdi.res
 
@@ -363,14 +364,18 @@ $(OBJS)\sxtdi.exe: $(SXTDI_OBJECTS) $(OBJS)\sxtdi.res
 $(OBJS)\sxtdi.obj: .\sxtdi.cpp
 	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) .\sxtdi.cpp
 
-$(OBJS)\sxutil.obj: ..\..\libsxccd\src\sxutil.c
-	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\libsxccd\src\sxutil.c
-
-$(OBJS)\aip.obj: ..\..\libaip\src\aip.c
-	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\libaip\src\aip.c
-
 $(OBJS)\fits.obj: ..\..\fits\src\fits.c
-	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\fits\src\fits.c
+    $(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\fits\src\fits.c
+
+#..\..\libsxccd\sxutil.obj: ..\..\libsxccd\src\sxutil.c
+#    cd ..\..\libsxccd && $(MAKE) /f makefile.vc
+$(OBJS)\sxutil.obj: ..\..\libsxccd\src\sxutil.c
+    $(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\libsxccd\src\sxutil.c
+
+#..\..\libaip\aip.obj: ..\..\libaip\src\aip.c
+#    cd ..\..\libaip && $(MAKE) /f makefile.vc
+$(OBJS)\aip.obj: ..\..\libaip\src\aip.c
+    $(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\libaip\src\aip.c
 
 $(OBJS)\sxtdi.res: sxTDIMSW\sxtdi.rc
 	rc /fo$@  /d WIN32 $(____DEBUGRUNTIME_3_p_1) /d _CRT_SECURE_NO_DEPRECATE=1 /d _CRT_NON_CONFORMING_SWPRINTFS=1 /d _SCL_SECURE_NO_WARNINGS=1 $(__NO_VC_CRTDBG_p_1)  /d __WXMSW__ $(__WXUNIV_DEFINE_p_1) $(__DEBUG_DEFINE_p_1) $(__NDEBUG_DEFINE_p_1) $(__EXCEPTIONS_DEFINE_p_1) $(__RTTI_DEFINE_p_1) $(__THREAD_DEFINE_p_1) $(__UNICODE_DEFINE_p_1) $(__MSLU_DEFINE_p_1) /i $(SETUPHDIR) /i $(WXWIN)\include $(____CAIRO_INCLUDEDIR_FILENAMES_1_p) /i . $(__DLLFLAG_p_1) /d _WINDOWS /d NOPCH sxTDIMSW\sxtdi.rc
