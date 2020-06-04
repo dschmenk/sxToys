@@ -457,6 +457,34 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
         wxClientDC dc(this);
         wxBitmap bitmap(ccdImage.Scale(focusWinWidth, focusWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
+        int xRadius  = 200 / ccdPixelWidth;  // Max centroid radius
+        int yRadius  = 200 / ccdPixelHeight;
+        float xStar  = zoomWidth  / 2;
+        float yStar  = zoomHeight / 2;
+        if (findBestCentroid(zoomWidth,
+                             zoomHeight,
+                             ccdFrame,
+                             &xStar, // centroid coordinate
+                             &yStar,
+                             zoomWidth  / 2, // search entire frame
+                             zoomHeight / 2,
+                             &xRadius,
+                             &yRadius,
+                             1.0))
+        {
+            //
+            // Draw rectangle around best star depicting FWHM
+            //
+            float xScale = focusWinWidth  / zoomWidth;
+            float yScale = focusWinHeight / zoomHeight;
+            xRadius *= xScale * 4;
+            yRadius *= yScale * 4;
+            xStar   *= xScale;
+            yStar   *= yScale;
+            dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
+            dc.SetBrush(*wxTRANSPARENT_BRUSH);
+            dc.DrawRectangle(xStar - xRadius, yStar - yRadius, xStar + xRadius, yStar + yRadius);
+        }
     }
     char minmax[20];
     sprintf(minmax, "Min: %d", pixelMin);
