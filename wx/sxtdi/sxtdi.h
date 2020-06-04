@@ -1,5 +1,3 @@
-#include "sxccd.h"
-#include "fits.h"
 #ifdef _MSC_VER
 #if _MSC_VER < 1700
 typedef unsigned char  uint8_t;
@@ -14,4 +12,10 @@ typedef signed   short int16_t;
 #include <sys/time.h>
 #define ENABLE_HIGH_RES_TIMER()
 #define DISABLE_HIGH_RES_TIMER()
+#endif
+#include "sxutil.h"
+#include "aip.h"
+#include "fits.h"
+#ifndef max
+#define max(a,b)            ((a)>=(b)?(a):(b))
 #endif

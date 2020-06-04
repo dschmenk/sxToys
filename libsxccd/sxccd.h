@@ -38,12 +38,13 @@
 #define VERSION_LSD 4
 
 #ifdef _MSC_VER
+#include <windows.h>
 #ifdef __cplusplus
 #define DLL_EXPORT                    extern "C" __declspec(dllexport)
 #else
 #define DLL_EXPORT                    __declspec(dllexport)
 #endif
-#else
+#else // _MSC_VER
 #ifdef __cplusplus
 #define DLL_EXPORT                    extern "C"
 #else

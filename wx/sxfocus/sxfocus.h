@@ -1,4 +1,5 @@
-#include "sxccd.h"
+#include "sxutil.h"
+#include "aip.h"
 #if _MSC_VER < 1700
 typedef unsigned char  uint8_t;
 typedef signed   char  int8_t;

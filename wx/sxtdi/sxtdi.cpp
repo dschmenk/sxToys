@@ -46,17 +46,10 @@
 #define SCAN_OK             ((wxThread::ExitCode)0)
 #define SCAN_ERR_TIME       ((wxThread::ExitCode)-1)
 #define SCAN_ERR_CAMERA     ((wxThread::ExitCode)-2)
-#define MAX_WHITE           65535
+#define MAX_WHITE           MAX_PIX
 #define INC_BLACK           1024
 #define MIN_BLACK           0
-#define MAX_BLACK           32768
-#define PIX_BITWIDTH        16
-#define MIN_PIX             0
-#define MAX_PIX             ((1<<PIX_BITWIDTH)-1)
-#define LUT_BITWIDTH        10
-#define LUT_SIZE            (1<<LUT_BITWIDTH)
-#define LUT_INDEX(i)        ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
-#define max(a,b)            ((a)>=(b)?(a):(b))
+#define MAX_BLACK           MAX_WHITE/2
 int ccdModel = SXCCD_MX5;
 /*
  * Camera Model Overrired for generic USB/USB2 interface
@@ -87,140 +80,6 @@ long     initialBinY     = 1;
 long     initialCamIndex = 0;
 bool     autonomous      = false;
 /*
- * 16 bit image sample to RGB pixel LUT
- */
-uint8_t redLUT[LUT_SIZE];
-uint8_t blugrnLUT[LUT_SIZE];
-static void calcRamp(int black, int white, float gamma, bool filter)
-{
-    int pix, offset;
-    float scale, recipg, pixClamp;
-
-    offset = LUT_INDEX(black) - 1;
-    scale  = (float)MAX_PIX/(white - black);
-    recipg = 1.0/gamma;
-    for (pix = 0; pix < LUT_SIZE; pix++)
-    {
-        pixClamp = ((float)(pix - offset)/(LUT_SIZE-1)) * scale;
-        if (pixClamp > 1.0) pixClamp = 1.0;
-        else if (pixClamp < 0.0) pixClamp = 0.0;
-        redLUT[pix]    = 255.0 * pow(pixClamp, recipg);
-        blugrnLUT[pix] = filter ? 0 : redLUT[pix];
-    }
-}
-/*
- * Star registration
- */
-static void calcCentroid(int width, int WXUNUSED(height), uint16_t *pixels, int x, int y, int x_radius, int y_radius, float *x_centroid, float *y_centroid, int min)
-{
-    int   i, j;
-    float sum;
-
-    *x_centroid = 0.0;
-    *y_centroid = 0.0;
-    sum         = 0.0;
-
-    for (j = y - y_radius; j <= y + y_radius; j++)
-        for (i = x - x_radius; i <= x + x_radius; i++)
-            if (pixels[j * width + i] > min)
-            {
-                *x_centroid += i * pixels[j * width + i];
-                *y_centroid += j * pixels[j * width + i];
-                sum         +=     pixels[j * width + i];
-            }
-    if (sum != 0.0)
-    {
-        *x_centroid /= sum;
-        *y_centroid /= sum;
-    }
-}
-static bool findBestCentroid(int width, int height, uint16_t *pixels, float *x_centroid, float *y_centroid, int x_range, int y_range, int *x_max_radius, int *y_max_radius, float sigs)
-{
-    int   i, j, x, y, x_min, x_max, y_min, y_max, x_radius, y_radius;
-    int   pixel, pixel_min, pixel_max;
-    float pixel_ave, pixel_sig;
-
-    x           = (int)*x_centroid;
-    y           = (int)*y_centroid;
-    x_min       = x - x_range;
-    x_max       = x + x_range;
-    y_min       = y - y_range;
-    y_max       = y + y_range;
-    x           = -1;
-    y           = -1;
-    x_radius    = 0;
-    y_radius    = 0;
-    pixel_ave   = 0.0;
-    pixel_sig   = 0.0;
-    if (x_min < *x_max_radius)        x_min = *x_max_radius;
-    if (x_max > width-*x_max_radius)  x_max = width-*x_max_radius;
-    if (y_min < *y_max_radius)        y_min = *y_max_radius;
-    if (y_max > height-*y_max_radius) y_max = height-*y_max_radius;
-    for (j = y_min; j < y_max; j++)
-        for (i = x_min; i < x_max; i++)
-            pixel_ave += pixels[j * width + i];
-    pixel_ave /= (y_max - y_min) * (x_max - x_min);
-    for (j = y_min; j < y_max; j++)
-        for (i = x_min; i < x_max; i++)
-            pixel_sig += (pixel_ave - pixels[j * width + i]) * (pixel_ave - pixels[j * width + i]);
-    pixel_sig = sqrt(pixel_sig / ((y_max - y_min) * (x_max - x_min) - 1));
-    pixel_max = pixel_min = pixel_ave + pixel_sig * sigs;
-    for (j = y_min; j < y_max; j++)
-    {
-        for (i = x_min; i < x_max; i++)
-        {
-            if (pixels[j * width + i] > pixel_max)
-            {
-                pixel = pixels[j * width + i];
-                /*
-                 * Local maxima
-                 */
-                if ((pixel >= pixels[j * width + i + 1])
-                 && (pixel >= pixels[j * width + i - 1])
-                 && (pixel >= pixels[(j + 1) * width + i])
-                 && (pixel >= pixels[(j - 1) * width + i]))
-                {
-                    /*
-                     * Avoid hot pixels
-                     */
-                     if ((pixel_min < pixels[j * width + i + 1])
-                      && (pixel_min < pixels[j * width + i - 1])
-                      && (pixel_min < pixels[(j + 1) * width + i])
-                      && (pixel_min < pixels[(j - 1) * width + i]))
-                    {
-                        /*
-                         * Find radius of highlight
-                         */
-                        for (y_radius = 1; (y_radius <= *y_max_radius)
-                                        && ((pixels[(j + y_radius) * width + i] > pixel_min)
-                                         || (pixels[(j - y_radius) * width + i] > pixel_min)); y_radius++);
-                        for (x_radius = 1; (x_radius <= *x_max_radius)
-                                        && ((pixels[j * width + i + x_radius] > pixel_min)
-                                         || (pixels[j * width + i - x_radius] > pixel_min)); x_radius++);
-                        /*
-                         * If its really big, skip it.  Something like the moon
-                         */
-                        if (x_radius < *x_max_radius && y_radius < *y_max_radius)
-                        {
-                            pixel_max = pixel;
-                            calcCentroid(width, height, pixels, i, j, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
-                            x = (int)(*x_centroid + 0.5);
-                            y = (int)(*y_centroid + 0.5);
-                            calcCentroid(width, height, pixels, x, y, x_radius, y_radius, x_centroid, y_centroid, pixel_min);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if  (x >= 0 && y >= 0)
-    {
-        *x_max_radius = x_radius;
-        *y_max_radius = y_radius;
-    }
-    return x >= 0 && y >= 0;
-}
-/*
  * Bin choices
  */
 wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
@@ -229,31 +88,6 @@ wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
  */
 wxString GammaChoices[] = {wxT("1.0"), wxT("1.5"), wxT("2.0")};
 float GammaValues[] = {1.0, 1.5, 2.0};
-/*
- * Camera utility functions
- */
-int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
-{
-    if (!defmodel) defmodel = SXCCD_MX5;
-    int count = sxOpen(hlist);
-    for (int i = 0 ; i < count; i++)
-    {
-#ifndef _MSC_VER
-        if (sxGetCameraModel(hlist[i]) == 0)
-        {
-            printf("Setting camera model to %02X\n", defmodel);
-            sxSetCameraModel(hlist[i], defmodel);
-        }
-#endif
-        sxGetCameraParams(hlist[i], SXCCD_IMAGE_HEAD, &paramlist[i]);
-    }
-    return count;
-}
-void sxRelease(HANDLE hlist[], int count)
-{
-	while (count--)
-		sxClose(hlist[count]);
-}
 /*
  * CCD Readout Thread
  */
@@ -693,14 +527,14 @@ void ScanFrame::DoAlign()
         // If first frame, identify best candidate for measuring scan rate
         //
         trackStarX = ccdFrameWidth / 2;  // Start search in middle quarter of image for best centroid
-        trackStarY = ccdFrameHeight - 1; // Start search in left half of image for best centroid
+        trackStarY = ccdFrameHeight - ccdFrameHeight / 4 - yRadius / 4; // Start search in left half of image for best centroid
         if (findBestCentroid(ccdFrameWidth,
                              ccdFrameHeight,
                              ccdFrame,
                              &trackStarX, // centroid coordinate
                              &trackStarY,
                              ccdFrameWidth / 8, // search range in middle/left of frame
-                             ccdFrameHeight / 2,
+                             ccdFrameHeight / 4,
                              &xRadius,
                              &yRadius,
                              TRACK_STAR_SIGMA))
@@ -733,6 +567,15 @@ void ScanFrame::DoAlign()
                 tdiExposure = (trackTime - trackInitialTime) / (trackStarInitialY - trackStarY);
                 tdiScanRate = 1000.0 / tdiExposure;
                 numFrames++;
+            }
+            else
+            {
+                //
+                // Restart search for best centroid
+                //
+                tdiExposure = 0.0;
+                tdiScanRate = 0.0;
+                numFrames = 0;
             }
         }
         else

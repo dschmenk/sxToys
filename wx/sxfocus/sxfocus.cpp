@@ -48,12 +48,6 @@
 #define INC_EXPOSURE    100
 #define MIN_EXPOSURE    10
 #define MAX_EXPOSURE    (INC_EXPOSURE*21)
-#define PIX_BITWIDTH    16
-#define MIN_PIX         0
-#define MAX_PIX         ((1<<PIX_BITWIDTH)-1)
-#define LUT_BITWIDTH    10
-#define LUT_SIZE        (1<<LUT_BITWIDTH)
-#define LUT_INDEX(i)    ((i)>>(PIX_BITWIDTH-LUT_BITWIDTH))
 /*
  * Camera Model Overrired for generic USB/USB2 interface
  */
@@ -77,50 +71,6 @@ int FixedModels[] = {SXCCD_HX5,
 int     camUSBType      = 0;
 long    initialCamIndex = 0;
 int     ccdModel = SXCCD_MX5;
-uint8_t redLUT[LUT_SIZE];
-uint8_t blugrnLUT[LUT_SIZE];
-static void calcRamp(int black, int white, float gamma, bool filter)
-{
-    int pix, offset;
-    float scale, recipg, pixClamp;
-
-    offset = LUT_INDEX(black) - 1;
-    scale  = (float)MAX_PIX/(white - black);
-    recipg = 1.0/gamma;
-    for (pix = 0; pix < LUT_SIZE; pix++)
-    {
-        pixClamp = ((float)(pix - offset)/(LUT_SIZE-1)) * scale;
-        if (pixClamp > 1.0) pixClamp = 1.0;
-        else if (pixClamp < 0.0) pixClamp = 0.0;
-        redLUT[pix]    = 255.0 * pow(pixClamp, recipg);
-        blugrnLUT[pix] = filter ? 0 : redLUT[pix];
-    }
-}
-/*
- * Camera utility functions
- */
-int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
-{
-    if (!defmodel) defmodel = SXCCD_MX5;
-    int count = sxOpen(hlist);
-    for (int i = 0 ; i < count; i++)
-    {
-#ifndef _MSC_VER
-        if (sxGetCameraModel(hlist[i]) == 0)
-        {
-            printf("Setting camera model to %02X\n", defmodel);
-            sxSetCameraModel(hlist[i], defmodel);
-        }
-#endif
-        sxGetCameraParams(hlist[i], SXCCD_IMAGE_HEAD, &paramlist[i]);
-    }
-    return count;
-}
-void sxRelease(HANDLE hlist[], int count)
-{
-	while (count--)
-		sxClose(hlist[count]);
-}
 class FocusApp : public wxApp
 {
 public:

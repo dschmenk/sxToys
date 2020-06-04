@@ -23,11 +23,11 @@ SXTDI_CXXFLAGS = /M$(__RUNTIME_LIBS_10)$(__DEBUGRUNTIME_4) /DWIN32 \
 	$(__NDEBUG_DEFINE_p) $(__EXCEPTIONS_DEFINE_p) $(__RTTI_DEFINE_p) \
 	$(__THREAD_DEFINE_p) $(__UNICODE_DEFINE_p) $(__MSLU_DEFINE_p) \
 	/I$(SETUPHDIR) /I$(WXWIN)\include $(____CAIRO_INCLUDEDIR_FILENAMES_p) /W4 /I. \
-	$(__DLLFLAG_p) /D_WINDOWS /I..\..\libsxccd /I..\..\fits\src \
+	$(__DLLFLAG_p) /D_WINDOWS /I..\..\libsxccd  /I..\..\libaip /I..\..\fits\src \
 	/DNOPCH $(__RTTIFLAG_11) \
 	$(__EXCEPTIONSFLAG_12) $(CPPFLAGS) $(CXXFLAGS)
 SXTDI_OBJECTS =  \
-	$(OBJS)\sxtdi.obj $(OBJS)\fits.obj
+	$(OBJS)\sxtdi.obj $(OBJS)\sxutil.obj $(OBJS)\aip.obj $(OBJS)\fits.obj
 SXTDI_RESOURCES =  \
 	$(OBJS)\sxtdi.res
 
@@ -100,19 +100,19 @@ LINK_TARGET_CPU = /MACHINE:IA64
 LINK_TARGET_CPU = /MACHINE:X64
 !endif
 !if "$(MONOLITHIC)" == "0"
-EXTRALIBS_FOR_BASE = 
+EXTRALIBS_FOR_BASE =
 !endif
 !if "$(MONOLITHIC)" == "1"
-EXTRALIBS_FOR_BASE =   
+EXTRALIBS_FOR_BASE =
 !endif
 !if "$(BUILD)" == "debug" && "$(DEBUG_INFO)" == "default"
 __DEBUGINFO_0 = /Zi
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_INFO)" == "default"
-__DEBUGINFO_0 = 
+__DEBUGINFO_0 =
 !endif
 !if "$(DEBUG_INFO)" == "0"
-__DEBUGINFO_0 = 
+__DEBUGINFO_0 =
 !endif
 !if "$(DEBUG_INFO)" == "1"
 __DEBUGINFO_0 = /Zi
@@ -121,10 +121,10 @@ __DEBUGINFO_0 = /Zi
 __DEBUGINFO_1 = /DEBUG
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_INFO)" == "default"
-__DEBUGINFO_1 = 
+__DEBUGINFO_1 =
 !endif
 !if "$(DEBUG_INFO)" == "0"
-__DEBUGINFO_1 = 
+__DEBUGINFO_1 =
 !endif
 !if "$(DEBUG_INFO)" == "1"
 __DEBUGINFO_1 = /DEBUG
@@ -133,10 +133,10 @@ __DEBUGINFO_1 = /DEBUG
 __DEBUGINFO_2 = $(__DEBUGRUNTIME_5)
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_INFO)" == "default"
-__DEBUGINFO_2 = 
+__DEBUGINFO_2 =
 !endif
 !if "$(DEBUG_INFO)" == "0"
-__DEBUGINFO_2 = 
+__DEBUGINFO_2 =
 !endif
 !if "$(DEBUG_INFO)" == "1"
 __DEBUGINFO_2 = $(__DEBUGRUNTIME_5)
@@ -145,10 +145,10 @@ __DEBUGINFO_2 = $(__DEBUGRUNTIME_5)
 ____DEBUGRUNTIME_3_p = /D_DEBUG
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_RUNTIME_LIBS)" == "default"
-____DEBUGRUNTIME_3_p = 
+____DEBUGRUNTIME_3_p =
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "0"
-____DEBUGRUNTIME_3_p = 
+____DEBUGRUNTIME_3_p =
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "1"
 ____DEBUGRUNTIME_3_p = /D_DEBUG
@@ -157,10 +157,10 @@ ____DEBUGRUNTIME_3_p = /D_DEBUG
 ____DEBUGRUNTIME_3_p_1 = /d _DEBUG
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_RUNTIME_LIBS)" == "default"
-____DEBUGRUNTIME_3_p_1 = 
+____DEBUGRUNTIME_3_p_1 =
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "0"
-____DEBUGRUNTIME_3_p_1 = 
+____DEBUGRUNTIME_3_p_1 =
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "1"
 ____DEBUGRUNTIME_3_p_1 = /d _DEBUG
@@ -169,16 +169,16 @@ ____DEBUGRUNTIME_3_p_1 = /d _DEBUG
 __DEBUGRUNTIME_4 = d
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_RUNTIME_LIBS)" == "default"
-__DEBUGRUNTIME_4 = 
+__DEBUGRUNTIME_4 =
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "0"
-__DEBUGRUNTIME_4 = 
+__DEBUGRUNTIME_4 =
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "1"
 __DEBUGRUNTIME_4 = d
 !endif
 !if "$(BUILD)" == "debug" && "$(DEBUG_RUNTIME_LIBS)" == "default"
-__DEBUGRUNTIME_5 = 
+__DEBUGRUNTIME_5 =
 !endif
 !if "$(BUILD)" == "release" && "$(DEBUG_RUNTIME_LIBS)" == "default"
 __DEBUGRUNTIME_5 = /opt:ref /opt:icf
@@ -187,7 +187,7 @@ __DEBUGRUNTIME_5 = /opt:ref /opt:icf
 __DEBUGRUNTIME_5 = /opt:ref /opt:icf
 !endif
 !if "$(DEBUG_RUNTIME_LIBS)" == "1"
-__DEBUGRUNTIME_5 = 
+__DEBUGRUNTIME_5 =
 !endif
 !if "$(BUILD)" == "debug"
 __OPTIMIZEFLAG_6 = /Od
@@ -214,7 +214,7 @@ __RTTIFLAG_11 = /GR-
 __RTTIFLAG_11 = /GR
 !endif
 !if "$(USE_EXCEPTIONS)" == "0"
-__EXCEPTIONSFLAG_12 = 
+__EXCEPTIONSFLAG_12 =
 !endif
 !if "$(USE_EXCEPTIONS)" == "1"
 __EXCEPTIONSFLAG_12 = /EHsc
@@ -346,7 +346,7 @@ $(OBJS):
 
 all: $(OBJS)\sxtdi.exe
 
-clean: 
+clean:
 	-if exist $(OBJS)\*.obj del $(OBJS)\*.obj
 	-if exist $(OBJS)\*.res del $(OBJS)\*.res
 	-if exist $(OBJS)\*.pch del $(OBJS)\*.pch
@@ -362,6 +362,12 @@ $(OBJS)\sxtdi.exe: $(SXTDI_OBJECTS) $(OBJS)\sxtdi.res
 
 $(OBJS)\sxtdi.obj: .\sxtdi.cpp
 	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) .\sxtdi.cpp
+
+$(OBJS)\sxutil.obj: ..\..\libsxccd\src\sxutil.c
+	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\libsxccd\src\sxutil.c
+
+$(OBJS)\aip.obj: ..\..\libaip\src\aip.c
+	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\libaip\src\aip.c
 
 $(OBJS)\fits.obj: ..\..\fits\src\fits.c
 	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\fits\src\fits.c
