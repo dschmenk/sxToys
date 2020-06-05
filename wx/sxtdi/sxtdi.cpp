@@ -622,13 +622,13 @@ void ScanFrame::DoAlign()
             //
             // Draw ellipse around best star depicting FWHM
             //
-            float xScale = (float)winWidth  / (float)ccdFrameWidth;
-            float yScale = (float)winHeight / (float)ccdFrameHeight;
-            xRadius *= xScale * 4;
-            yRadius *= yScale * 4;
+            float xScale = (float)winHeight / (float)ccdFrameWidth;
+            float yScale = (float)winWidth  / (float)ccdFrameHeight;
+            xRadius *= 4 * xScale;
+            yRadius *= 4 * yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(trackStarX * xScale - xRadius, trackStarY * yScale - yRadius, xRadius * 2, yRadius * 2);
+            dc.DrawEllipse(winWidth - 1 - trackStarY * yScale - yRadius, winHeight - trackStarX * xScale - xRadius, yRadius * 2, xRadius * 2);
         }
         if (tdiScanRate > 0.0)
         {
