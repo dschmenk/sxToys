@@ -21,6 +21,8 @@ sxFocus uses the on-chip binning and sub-windowing capabilities of the Starlight
 
 ![sxFocus 4X](https://github.com/dschmenk/sxToys/blob/master/images/sxfocus-4x.png)
 
+An ellipse representing an exaggerated radius of the star's centroid calculation will appear around the best candidate. Minimize the radius while focussing to achieve the tightest stars. You may have to let it settle for a frame after touching the focusser as it will smear the star image.
+
 Some other options may be useful such as a red filter over the focus image for dark adapted eyes and a gamma function for teasing out details of star widths.
 
 ## Camera Options
