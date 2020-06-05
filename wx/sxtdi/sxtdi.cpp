@@ -595,7 +595,7 @@ void ScanFrame::DoAlign()
         int pixelMin = MAX_PIX;
         unsigned char *rgb = scanImage->GetData();
         uint16_t *m16      = ccdFrame;
-        for (int l = 0; l < ccdFrameWidth*ccdFrameHeight; l++)
+        for (int l = 0; l < ccdPixelCount; l++)
         {
             if (*m16 < pixelMin) pixelMin = *m16;
             if (*m16 > pixelMax) pixelMax = *m16;
@@ -604,7 +604,7 @@ void ScanFrame::DoAlign()
         calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
         for (unsigned y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            m16 = &(ccdFrame[ccdPixelCount - y - 1]);
+            m16 = &(ccdFrame[ccdPixelCount - ccdFrameWidth - 1 + y]);
             for (unsigned x = 0; x < ccdFrameHeight; x++)
             {
                 rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
@@ -628,7 +628,7 @@ void ScanFrame::DoAlign()
             yRadius *= 4 * yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(winWidth - 1 - trackStarY * yScale - yRadius, winHeight - trackStarX * xScale - xRadius, yRadius * 2, xRadius * 2);
+            dc.DrawEllipse(winWidth - 1 - trackStarY * yScale - yRadius, trackStarX * xScale - xRadius, yRadius * 2, xRadius * 2);
         }
         if (tdiScanRate > 0.0)
         {
@@ -719,7 +719,7 @@ void ScanFrame::DoTDI()
             uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight) ? ccdBinHeight - 1 : currentRow)];
             for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
             {
-                uint16_t *m16 = &pixels[ccdBinWidth - y - 1];
+                uint16_t *m16 = &pixels[y];
                 for (unsigned x = 0; x < ccdBinHeight; x++)
                 {
                     if (*m16 < pixelMin && *m16 > 0) pixelMin = *m16;
@@ -928,7 +928,7 @@ void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
             unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
             for (int x = 0; x < ccdFrameHeight; x++)
             {
-                rgb[1] = 128;
+                rgb[1] = 64;
                 rgb   += 3;
             }
         }
