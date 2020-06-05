@@ -31,7 +31,7 @@ For fine alignment and scan rate measurement, select the 'Scan/Align' menu item.
 
 ![sxTDI Align](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-align.png)
 
-sxTDI will pick a "best candidate" star to track. It will calculate the up and down drift as well as the scan rate and display them in the status bar. If the status bar is too small, simply resize the window until you can see it fully. Should the tracking star get occluded by clouds or run off the frame, you will see this windows pop up, and alignment will cease:
+sxTDI will pick a "best candidate" star to track and draw a green ellipse around it's exaggerated centroid. It will calculate the up and down drift as well as the scan rate and display them in the status bar. If the status bar is too small, simply resize the window until you can see it fully. It might seem that the best star wasn't chosen to track, however the algorithm tries to pick a candidate star in the middle/left side of the image for starters. This will allow the least amount of differential drift between the top and bottom and give the scan rate calculation the most time to converge on an accurate rate. If a dim star is chosen, it may not provide the best calculated scan rate, or get dropped. Be a little patient for a bright candidate to show up. Should the tracking star get occluded by clouds or run off the frame, you will see this windows pop up, and alignment will cease:
 
 ![sxTDI Lost](https://github.com/dschmenk/sxToys/blob/master/images/sxtdi-lost.png)
 
@@ -45,7 +45,7 @@ Conversely, if the tracking coordinate decreases, the camera needs to be rotated
 
 During alignment, there is no need to stop and start the alignment. Simply press 'A' and the alignment will restart. However, you will often see the tracking star lost dialog when you make adjustments. Simply click 'Okay' or press the 'Return' key to dismiss and 'A' to resume alignment.
 
-As the alignment gets closer and closer, the amount of adjustment decreases. Until barely any rotation is made to keep the tracking star within 1 pixel. It will be frustrating, but the results it worth it. Once aligned, the camera and mount don't have to be adjusted. The scan rate should quickly converge once aligned. Take note of the scan rate. You can just enter it in on subsequent scans without having to re-align (unless the camera is moved) through the 'Scan/Scan Rate...' dialog.
+As the alignment gets closer and closer, the amount of adjustment decreases. Until barely any rotation is made to keep the tracking star within 1 pixel. It will be frustrating, but the results it worth it. Once aligned, the camera and mount don't have to be adjusted if they aren't moved. The scan rate should quickly converge once aligned. Take note of the scan rate. You can just enter it in on subsequent scans without having to re-align (unless the camera is moved) through the 'Scan/Scan Rate...' dialog.
 
 ## TDI Scanning
 
