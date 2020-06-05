@@ -86,3 +86,5 @@ sxTDI will save the image to a FITS file. You can stop the scan at anytime witho
 [Drift Scan Technique (Audine Camera)](http://www.astrosurf.com/audine/English/result/scan.htm)
 
 [Drift Scan Imaging (SBIG Camera)](http://www.company7.com/library/sbig/pdffiles/drftscan.pdf)
+
+[Astrometry Plate Solving](http://nova.astrometry.net)
