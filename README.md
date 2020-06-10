@@ -20,17 +20,17 @@ sxTDI allows Time Delay Integration, or Drift Scanning imaging on many Starlight
 Some of the benefits of Time Delay Integration:
 
     1. Minimal equipment requirements
-  
+
       - Low end laptop (Windows XP+, Mac OS/X 10.11+, Linux)
-    
+
       - No fancy mount or tripod (no tracking needed)
-    
+
       - Small scope or camera lens
-    
+
     2. Only small patch of unobstructed sky needed
-  
+
     3. Real-time display of image
-  
+
     4. Easy to automate
 
 ## Test Image
@@ -38,3 +38,7 @@ Some of the benefits of Time Delay Integration:
 Here is a sample, unprocessed except for brightness adjustment to bring out the vertical streaking inherent in drift scanning. Using an SXV-H9 camera and Meade 80mm (f/6) refractor (scroll down to check out the M64 and M65 galaxies):
 
 ![Test Scan](https://github.com/dschmenk/sxToys/blob/master/images/macscan.jpg).
+
+## Image Reduction
+
+A [script](https://github.com/dschmenk/sxToys/blob/master/images/reduce_scan.py) now exists to process drift scanned images
