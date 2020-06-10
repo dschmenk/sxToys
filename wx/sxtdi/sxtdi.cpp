@@ -379,7 +379,7 @@ bool ScanFrame::ConnectCamera(int index)
         ccdFrameHeight = camParams[camSelect].height;
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
-        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1, 1);
+        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth / 2, ccdFrameHeight, 1, 1);
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
         sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
@@ -398,7 +398,7 @@ bool ScanFrame::ConnectCamera(int index)
     if (!IsMaximized())
     {
         int winHeight = ccdFrameWidth; // Swap width/height
-        int winWidth  = ccdFrameHeight * ccdPixelHeight / ccdPixelWidth;
+        int winWidth  = ccdFrameHeight * 2 * ccdPixelHeight / ccdPixelWidth; // Make the width double the height
         while (winHeight > 720) // Constrain initial size to something reasonable
         {
             winWidth  >>= 1;
@@ -500,13 +500,13 @@ void ScanFrame::DoAlign()
 {
     static long trackInitialTime;
     long trackTime = trackWatch->Time();
-    sxLatchImage(camHandles[camSelect], // cam handle
+    sxLatchImage(camHandles[camSelect],      // cam handle
                  SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                 SXCCD_IMAGE_HEAD, // main ccd
-                 0, // xoffset
-                 0, // yoffset
-                 ccdFrameWidth,  // width
-                 ccdFrameHeight, // height
+                 SXCCD_IMAGE_HEAD,           // main ccd
+                 ccdFrameWidth / 4, // xoffset
+                 0,                 // yoffset
+                 ccdFrameWidth / 2, // width
+                 ccdFrameHeight,    // height
                  1,  // xbin
                  1); // ybin
     if (!sxReadImage(camHandles[camSelect], // cam handle
@@ -527,9 +527,9 @@ void ScanFrame::DoAlign()
         //
         // If first frame, identify best candidate for measuring scan rate
         //
-        trackStarX = ccdFrameWidth / 2;  // Start search in middle quarter of image for best centroid
+        trackStarX = ccdFrameWidth / 4;  // Start search in middle quarter of image for best centroid
         trackStarY = ccdFrameHeight - ccdFrameHeight / 4 - yRadius / 4; // Start search in left half of image for best centroid
-        if (findBestCentroid(ccdFrameWidth,
+        if (findBestCentroid(ccdFrameWidth / 2,
                              ccdFrameHeight,
                              ccdFrame,
                              &trackStarX, // centroid coordinate
@@ -552,7 +552,7 @@ void ScanFrame::DoAlign()
         // Track star for rate measurement
         //
         if ((trackStarY > tdiScanRate)
-          && findBestCentroid(ccdFrameWidth,
+          && findBestCentroid(ccdFrameWidth / 2,
                               ccdFrameHeight,
                               ccdFrame,
                               &trackStarX,  // centroid start and final search coordinate
@@ -602,16 +602,16 @@ void ScanFrame::DoAlign()
             m16++;
         }
         calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter);
-        for (unsigned y = 0; y < ccdFrameWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+        for (unsigned y = 0; y < ccdFrameWidth / 2; y++) // Rotate image 90 degrees counterclockwise as it gets copied
         {
-            m16 = &(ccdFrame[ccdPixelCount - ccdFrameWidth - 1 + y]);
+            m16 = &(ccdFrame[ccdPixelCount - (ccdFrameWidth / 2) - 1 + y]);
             for (unsigned x = 0; x < ccdFrameHeight; x++)
             {
                 rgb[0] = max(rgb[0], redLUT[LUT_INDEX(*m16)]);
                 rgb[1] = max(rgb[1], blugrnLUT[LUT_INDEX(*m16)]);
                 rgb[2] = max(rgb[2], blugrnLUT[LUT_INDEX(*m16)]);
                 rgb   += 3;
-                m16   -= ccdFrameWidth;
+                m16   -= ccdFrameWidth / 2;
             }
         }
         wxClientDC dc(this);
@@ -622,7 +622,7 @@ void ScanFrame::DoAlign()
             //
             // Draw ellipse around best star depicting FWHM
             //
-            float xScale = (float)winHeight / (float)ccdFrameWidth;
+            float xScale = (float)winHeight / (float)(ccdFrameWidth / 2);
             float yScale = (float)winWidth  / (float)ccdFrameHeight;
             xRadius *= 4 * xScale;
             yRadius *= 4 * yScale;
@@ -716,11 +716,11 @@ void ScanFrame::DoTDI()
             int pixelMax       = MIN_PIX;
             int pixelMin       = MAX_PIX;
             unsigned char *rgb = scanImage->GetData();
-            uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight) ? ccdBinHeight - 1 : currentRow)];
+            uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight * 2) ? ccdBinHeight * 2 - 1 : currentRow)];
             for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
             {
                 uint16_t *m16 = &pixels[y];
-                for (unsigned x = 0; x < ccdBinHeight; x++)
+                for (unsigned x = 0; x < ccdBinHeight * 2; x++)
                 {
                     if (*m16 < pixelMin && *m16 > 0) pixelMin = *m16;
                     if (*m16 > pixelMax) pixelMax = *m16;
@@ -888,7 +888,7 @@ void ScanFrame::StartTDI()
         delete scanImage;
     ccdBinWidth  = ccdFrameWidth  / ccdBinX;
     ccdBinHeight = ccdFrameHeight / ccdBinY;
-    scanImage    = new wxImage(ccdBinHeight, ccdBinWidth);
+    scanImage    = new wxImage(ccdBinHeight * 2, ccdBinWidth);
     binExposure  = tdiExposure * ccdBinY;
     tdiLength    = tdiMinutes * 60000 / binExposure;
     if (tdiLength < ccdBinHeight)
@@ -921,9 +921,9 @@ void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
         trackWatch = new wxStopWatch();
         if (scanImage)
             delete scanImage;
-        scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth);
+        scanImage = new wxImage(ccdFrameHeight, ccdFrameWidth / 2);
         memset(scanImage->GetData(), 0, ccdPixelCount * 3);
-        for (int y = 0; y < ccdFrameWidth; y += ccdFrameWidth/32)
+        for (int y = 0; y < ccdFrameWidth / 2; y += ccdFrameWidth/32)
         {
             unsigned char *rgb = scanImage->GetData() + y * ccdFrameHeight * 3;
             for (int x = 0; x < ccdFrameHeight; x++)
