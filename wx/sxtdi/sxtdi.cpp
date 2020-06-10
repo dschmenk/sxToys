@@ -39,6 +39,7 @@
 #include <wx/numdlg.h>
 #include <wx/filedlg.h>
 #include <wx/cmdline.h>
+#include <wx/config.h>
 #include "sxtdi.h"
 #define TRACK_STAR_RADIUS   200 // Tracking star max radius in microns
 #define TRACK_STAR_SIGMA    1.0 // Only track stars 1 sigma over the noise level
@@ -301,6 +302,8 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
 }
 bool ScanApp::OnInit()
 {
+    wxConfig config(wxT("sxTDI"), wxT("sxToys"));
+    config.Read(wxT("ScanRate"), &initialRate);
     if (wxApp::OnInit())
     {
         ScanFrame *frame = new ScanFrame();
@@ -534,7 +537,7 @@ void ScanFrame::DoAlign()
                              ccdFrame,
                              &trackStarX, // centroid coordinate
                              &trackStarY,
-                             ccdFrameWidth / 8, // search range in middle/left of frame
+                             ccdFrameWidth / 4, // search range in middle/left of frame
                              ccdFrameHeight / 4,
                              &xRadius,
                              &yRadius,
@@ -976,6 +979,9 @@ void ScanFrame::OnStop(wxCommandEvent& WXUNUSED(event))
         tdiTimer.Stop();
         if (tdiState == STATE_ALIGNING)
         {
+            char statusText[40];
+            sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
+            SetStatusText(statusText, 2);
             delete trackWatch;
             trackWatch = NULL;
         }
@@ -994,12 +1000,6 @@ void ScanFrame::OnStop(wxCommandEvent& WXUNUSED(event))
                 tdiFrame     = NULL;
                 tdiFileSaved = true;
             }
-        }
-        else
-        {
-            char statusText[40];
-            sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
-            SetStatusText(statusText, 2);
         }
         DISABLE_HIGH_RES_TIMER();
         tdiState = STATE_IDLE;
@@ -1096,6 +1096,8 @@ void ScanFrame::OnClose(wxCloseEvent& event)
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+    wxConfig config(wxT("sxTDI"), wxT("sxToys"));
+    config.Write(wxT("ScanRate"), tdiScanRate);
     Destroy();
 }
 void ScanFrame::OnExit(wxCommandEvent& WXUNUSED(event))
