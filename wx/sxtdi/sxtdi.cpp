@@ -43,7 +43,7 @@
 #include "sxtdi.h"
 #define TRACK_STAR_RADIUS   200 // Tracking star max radius in microns
 #define TRACK_STAR_SIGMA    1.0 // Only track stars 1 sigma over the noise level
-#define ALIGN_EXP           1000
+#define ALIGN_EXP           500
 #define MIN_SCREEN_UPDATE   1000
 #define SCAN_OK             ((wxThread::ExitCode)0)
 #define SCAN_ERR_TIME       ((wxThread::ExitCode)-1)
