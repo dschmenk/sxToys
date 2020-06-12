@@ -39,6 +39,6 @@ Here is a sample, unprocessed except for brightness adjustment to bring out the 
 
 ![Test Scan](https://github.com/dschmenk/sxToys/blob/master/images/macscan.jpg).
 
-## Image Reduction
+## [Image Reduction](https://github.com/dschmenk/sxToys/tree/master/images)
 
 A [script](https://github.com/dschmenk/sxToys/blob/master/images/reduce_scan.py) now exists to process drift scanned images
