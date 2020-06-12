@@ -89,7 +89,10 @@ private:
     unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     float          ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
+    float          xBestCentroid, yBestCentroid;
+    int            xOffset, yOffset;
     int            focusZoom, focusExposure;
+    int            zoomWidth, zoomHeight;
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
@@ -97,6 +100,7 @@ private:
     wxTimer        focusTimer;
     void InitLevels();
     bool ConnectCamera(int index);
+    void CenterCentroid(float x, float y, int width, int height);
     void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
@@ -271,6 +275,7 @@ bool FocusFrame::ConnectCamera(int index)
 {
     char statusText[40];
     int focusWinWidth, focusWinHeight;
+    xOffset = yOffset = 0;
     InitLevels();
     if (ccdFrame)
         free(ccdFrame);
@@ -310,7 +315,9 @@ bool FocusFrame::ConnectCamera(int index)
         }
         SetClientSize(focusWinWidth, focusWinHeight);
     }
-    focusZoom = -1;
+    focusZoom  = -1;
+    zoomWidth  = ccdFrameWidth  >> -focusZoom;
+    zoomHeight = ccdFrameHeight >> -focusZoom;
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
     return camSelect >= 0;
@@ -375,17 +382,30 @@ void FocusFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
     }
 #endif
 }
+void FocusFrame::CenterCentroid(float x, float y, int width, int height)
+{
+    //
+    // Use centroid to center zoomed window
+    //
+    xOffset += x - width  / 2;
+    yOffset += y - height / 2;
+    if (xOffset < 0)
+        xOffset = 0;
+    else if (xOffset >= (ccdFrameWidth - width))
+        xOffset = ccdFrameWidth - width - 1;
+    if (yOffset < 0)
+        yOffset = 0;
+    else if (yOffset >= (ccdFrameHeight - height))
+        yOffset = ccdFrameHeight - height - 1;
+}
 void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
-    int zoomWidth, zoomHeight;
     int focusWinWidth, focusWinHeight;
     int pixCount;
     if (focusExposure == MIN_EXPOSURE)
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     if (focusZoom < 1)
     {
-        zoomWidth  = ccdFrameWidth  >> -focusZoom;
-        zoomHeight = ccdFrameHeight >> -focusZoom;
         sxLatchImage(camHandles[camSelect], // cam handle
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                      SXCCD_IMAGE_HEAD, // main ccd
@@ -399,14 +419,12 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     }
     else
     {
-        zoomWidth  = ccdFrameWidth >> focusZoom;
-        zoomHeight = ccdFrameHeight >> focusZoom;
         sxLatchImage(camHandles[camSelect], // cam handle
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                      SXCCD_IMAGE_HEAD, // main ccd
-                     (ccdFrameWidth  - zoomWidth)  / 2, // xoffset
-                     (ccdFrameHeight - zoomHeight) / 2, // yoffset
-                     zoomWidth, // width
+                     xOffset,    // xoffset
+                     yOffset,    // yoffset
+                     zoomWidth,  // width
                      zoomHeight, // height
                      1, // xbin
                      1); // ybin
@@ -457,21 +475,22 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
         wxClientDC dc(this);
         wxBitmap bitmap(ccdImage.Scale(focusWinWidth, focusWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
-        int xRadius  = 100 / ccdPixelWidth;  // Max centroid radius
-        int yRadius  = 100 / ccdPixelHeight;
-        float xStar  = zoomWidth  / 2;
-        float yStar  = zoomHeight / 2;
+        xBestCentroid  = zoomWidth  / 2;
+        yBestCentroid  = zoomHeight / 2;
+        int xRadius = 100 / ccdPixelWidth;  // Max centroid radius
+        int yRadius = 100 / ccdPixelHeight;
         if (findBestCentroid(zoomWidth,
                              zoomHeight,
                              ccdFrame,
-                             &xStar, // centroid coordinate
-                             &yStar,
+                             &xBestCentroid, // centroid coordinate
+                             &yBestCentroid,
                              zoomWidth  / 2, // search entire frame
                              zoomHeight / 2,
                              &xRadius,
                              &yRadius,
                              1.0))
         {
+            CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
             //
             // Draw ellipse around best star depicting FWHM
             //
@@ -479,11 +498,9 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
             float yScale = (float)focusWinHeight / (float)zoomHeight;
             xRadius *= xScale * 4;
             yRadius *= yScale * 4;
-            xStar   *= xScale;
-            yStar   *= yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(xStar - xRadius, yStar - yRadius, xRadius * 2, yRadius * 2);
+            dc.DrawEllipse(xBestCentroid * xScale - xRadius, yBestCentroid * yScale - yRadius, xRadius * 2, yRadius * 2);
         }
     }
     char minmax[20];
@@ -515,27 +532,52 @@ void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
 {
     char statusText[20];
 
-    focusZoom++;
-    if (focusZoom > MAX_ZOOM)
-        focusZoom = MAX_ZOOM;
-    if (focusZoom < 1)
-        sprintf(statusText, "Bin: X%d", 1 << -focusZoom);
-    else
-        sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
-    SetStatusText(statusText, 1);
+    if (focusZoom < MAX_ZOOM)
+    {
+        focusZoom++;
+        if (focusZoom < 1)
+        {
+            zoomWidth  = ccdFrameWidth  >> -focusZoom;
+            zoomHeight = ccdFrameHeight >> -focusZoom;
+            sprintf(statusText, "Bin: X%d", 1 << -focusZoom);
+        }
+        else
+        {
+            zoomWidth  = ccdFrameWidth >> focusZoom;
+            zoomHeight = ccdFrameHeight >> focusZoom;
+            xOffset += zoomWidth / 2;
+            yOffset += zoomHeight / 2;
+            CenterCentroid(xBestCentroid / 2, yBestCentroid / 2, zoomWidth, zoomHeight);
+            sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
+        }
+        SetStatusText(statusText, 1);
+    }
 }
 void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
 {
     char statusText[20];
 
-    focusZoom--;
-    if (focusZoom < MIN_ZOOM)
-        focusZoom = MIN_ZOOM;
-    if (focusZoom < 1)
-        sprintf(statusText, "Bin: X%d", 1 << -focusZoom);
-    else
-        sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
-    SetStatusText(statusText, 1);
+    if (focusZoom > MIN_ZOOM)
+    {
+        focusZoom--;
+        if (focusZoom < 1)
+        {
+            zoomWidth  = ccdFrameWidth  >> -focusZoom;
+            zoomHeight = ccdFrameHeight >> -focusZoom;
+            xOffset = yOffset = 0;
+            sprintf(statusText, "Bin: X%d", 1 << -focusZoom);
+        }
+        else
+        {
+            zoomWidth  = ccdFrameWidth >> focusZoom;
+            zoomHeight = ccdFrameHeight >> focusZoom;
+            xOffset -= zoomWidth / 4;
+            yOffset -= zoomHeight / 4;
+            CenterCentroid(xBestCentroid * 2, yBestCentroid * 2, zoomWidth, zoomHeight);
+            sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
+        }
+        SetStatusText(statusText, 1);
+    }
 }
 void FocusFrame::OnContrastInc(wxCommandEvent& WXUNUSED(event))
 {
