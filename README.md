@@ -42,3 +42,5 @@ Here is a sample, unprocessed except for brightness adjustment to bring out the 
 ## [Image Reduction](https://github.com/dschmenk/sxToys/tree/master/images)
 
 A [script](https://github.com/dschmenk/sxToys/blob/master/images/reduce_scan.py) now exists to process drift scanned images
+
+![Reduction Sample](https://github.com/dschmenk/sxToys/blob/master/images/reduce-sample1.png)
