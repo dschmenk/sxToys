@@ -476,6 +476,8 @@ void ScanFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 			camUSBType = FixedModels[dlg.GetSelection()];
 			sxSetCameraModel(camHandles[camSelect], camUSBType);
 			ConnectCamera(camSelect);
+            wxConfig config(wxT("sxTDI"), wxT("sxToys"));
+            config.Write(wxT("USB1Camera"), camUSBType);
 		}
 	}
 #endif
@@ -1101,9 +1103,6 @@ void ScanFrame::OnClose(wxCloseEvent& event)
 	}
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Write(wxT("ScanRate"), tdiScanRate);
-#ifndef _MSC_VER
-    config.Write(wxT("USB1Camera"), camUSBType);
-#endif
     Destroy();
 }
 void ScanFrame::OnExit(wxCommandEvent& WXUNUSED(event))

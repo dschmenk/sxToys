@@ -379,6 +379,8 @@ void FocusFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
         camUSBType = FixedModels[dlg.GetSelection()];
         sxSetCameraModel(camHandles[camSelect], camUSBType);
         ConnectCamera(camSelect);
+        wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+        config.Write(wxT("USB1Camera"), camUSBType);
     }
     else
     {
@@ -634,10 +636,6 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
-#ifndef _MSC_VER
-    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
-    config.Write(wxT("USB1Camera"), camUSBType);
-#endif
     Destroy();
 }
 void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))
