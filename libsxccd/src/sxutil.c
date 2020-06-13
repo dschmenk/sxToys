@@ -12,7 +12,7 @@ int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
     for (int i = 0 ; i < count; i++)
     {
 #ifndef _MSC_VER
-        if (sxGetCameraModel(hlist[i]) == 0)
+        if (sxGetCameraModel(hlist[i]) == 0xFFFF)
         {
             sxSetCameraModel(hlist[i], defmodel);
         }
@@ -23,8 +23,8 @@ int sxProbe(HANDLE hlist[], t_sxccd_params paramlist[], int defmodel)
 }
 void sxRelease(HANDLE hlist[], int count)
 {
-	while (count--)
-		sxClose(hlist[count]);
+    while (count--)
+        sxClose(hlist[count]);
 }
 #ifdef __cplusplus
 }
