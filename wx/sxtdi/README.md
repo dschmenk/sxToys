@@ -45,7 +45,7 @@ Conversely, if the tracking coordinate decreases, the camera needs to be rotated
 
 During alignment, there is no need to stop and start the alignment. Simply press 'A' and the alignment will restart. However, you will often see the tracking star lost dialog when you make adjustments. Simply click 'Okay' or press the 'Return' key to dismiss and 'A' to resume alignment.
 
-As the alignment gets closer and closer, the amount of adjustment decreases. Until barely any rotation is made to keep the tracking star within 1 pixel. It will be frustrating, but the results it worth it. Once aligned, the camera and mount don't have to be adjusted if they aren't moved. The scan rate should quickly converge once aligned. Take note of the scan rate. You can just enter it in on subsequent scans without having to re-align (unless the camera is moved) through the 'Scan/Scan Rate...' dialog.
+As the alignment gets closer and closer, the amount of adjustment decreases. Until barely any rotation is made to keep the tracking star within 1 pixel. It will be frustrating, but the results it worth it. Once aligned, the camera and mount don't have to be adjusted if they aren't moved. The scan rate should quickly converge once aligned. The scan rate will be saved between runs. If you haven't moved the camera/telescope since the last session you shouldn't need to re-align & re-measure the scan rate.
 
 ## TDI Scanning
 
