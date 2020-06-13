@@ -79,6 +79,13 @@ USB 1.1 module users under Windows should follow the process of upgrading the fi
 
 sxTDI will save the image to a FITS file. You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use [GIMP](https://gimp.org), the Gnu Image Manipulation Program, which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
 
+
+## [Image Reduction](https://github.com/dschmenk/sxToys/tree/master/images)
+
+A [script](https://github.com/dschmenk/sxToys/blob/master/images/reduce_scan.py) now exists to process drift scanned images
+
+![Reduction Sample](https://github.com/dschmenk/sxToys/blob/master/images/reduce-sample1.png)
+
 ## Useful Links
 
 [Time Delay Integration Presentation](https://nexsci.caltech.edu/workshop/2005/presentations/Rabinowitz.pdf)

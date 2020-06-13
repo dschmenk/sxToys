@@ -33,6 +33,10 @@ Some of the benefits of Time Delay Integration:
 
     4. Easy to automate
 
+## [Build Instructions](https://github.com/dschmenk/sxToys/tree/master/wx)
+
+[wxWidgets](https://www.wxwidgets.org) based programs for Windows, Mac OS and Linux.
+
 ## Test Image
 
 Here is a sample, unprocessed except for brightness adjustment to bring out the vertical streaking inherent in drift scanning. Using an SXV-H9 camera and Meade 80mm (f/6) refractor (scroll down to check out the M64 and M65 galaxies):
