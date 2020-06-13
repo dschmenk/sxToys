@@ -304,6 +304,9 @@ bool ScanApp::OnInit()
 {
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Read(wxT("ScanRate"), &initialRate);
+#ifndef _MSC_VER
+    config.Read(wxT("USB1Camera"), &camUSBType);
+#endif
     if (wxApp::OnInit())
     {
         ScanFrame *frame = new ScanFrame();
@@ -1098,6 +1101,9 @@ void ScanFrame::OnClose(wxCloseEvent& event)
 	}
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Write(wxT("ScanRate"), tdiScanRate);
+#ifndef _MSC_VER
+    config.Write(wxT("USB1Camera"), camUSBType);
+#endif
     Destroy();
 }
 void ScanFrame::OnExit(wxCommandEvent& WXUNUSED(event))

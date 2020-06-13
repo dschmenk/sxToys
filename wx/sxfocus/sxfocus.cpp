@@ -35,6 +35,7 @@
     #include <wx/wx.h>
 #endif
 #include <wx/cmdline.h>
+#include <wx/config.h>
 #include "sxfocus.h"
 #define MIN_ZOOM        -4
 #define MAX_ZOOM        4
@@ -216,6 +217,10 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
 }
 bool FocusApp::OnInit()
 {
+    #ifndef _MSC_VER
+    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+    config.Read(wxT("USB1Camera"), &camUSBType);
+#endif
     if (wxApp::OnInit())
     {
         FocusFrame *frame = new FocusFrame();
@@ -629,6 +634,10 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+#ifndef _MSC_VER
+    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+    config.Write(wxT("USB1Camera"), camUSBType);
+#endif
     Destroy();
 }
 void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))
