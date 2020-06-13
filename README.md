@@ -44,3 +44,7 @@ Here is a sample, unprocessed except for brightness adjustment to bring out the 
 A [script](https://github.com/dschmenk/sxToys/blob/master/images/reduce_scan.py) now exists to process drift scanned images
 
 ![Reduction Sample](https://github.com/dschmenk/sxToys/blob/master/images/reduce-sample1.png)
+
+## [Build Instructions](https://github.com/dschmenk/sxToys/tree/master/wx)
+
+[wxWidgets](https://www.wxwidgets.org) based programs for Windows, Mac OS and Linux.
