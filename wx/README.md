@@ -4,6 +4,30 @@ Download [wxWidgets Windows Installer](https://www.wxwidgets.org/downloads/)
 
 Copy here and rename `wxWidgets`
 
+    cd wxWidgets\build\msw
+    
+    nmake /f makefile.vc BUILD=release SHARED=1
+    
+    cd ..\..\..
+
+Download [CFITSIO Library]()
+
+    ren cfitsio-3.XX cfitsio
+    
+    cd cfitsio
+    
+    mkdir build
+    
+    cd build
+    
+    cmake.exe -G "NMake Makefiles" ..
+    
+    cmake.exe --build . --config Release
+    
+    cd ..\..
+    
+Build toys
+
     nmake /f makefile.vc
 
     copy /s sxToys-Win32 "C:\Program Files\sxToys"
@@ -33,6 +57,14 @@ Select which min version to build to. Must have the appropriate SDK installed:
     make
 
     cd ../..
+    
+Build CFITSIO library
+
+    ln -s cfitsio-3.48 cfitsio
+    
+    cd cfitsio
+    
+    ./configure 
 
     make bundle
 
@@ -41,6 +73,8 @@ Select which min version to build to. Must have the appropriate SDK installed:
 Install development packages for `libwxgtk3.0-dev`
 
 Install development packages for `libusb-1.0-0-dev`
+
+Install development package for `libcfitsio3-dev`
 
     make
 
