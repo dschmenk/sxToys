@@ -528,8 +528,8 @@ void ScanFrame::DoAlign()
     }
     sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     tdiTimer.StartOnce(ALIGN_EXP);
-    int xRadius = TRACK_STAR_RADIUS / ccdPixelHeight;    // Centroid radius
-    int yRadius = TRACK_STAR_RADIUS / ccdPixelWidth * 2; // Take into account star streaking for long focal lengths
+    int xRadius = TRACK_STAR_RADIUS / ccdPixelWidth;    // Centroid radius
+    int yRadius = TRACK_STAR_RADIUS / ccdPixelHeight * 2; // Take into account star streaking for long focal lengths
     if (numFrames == 0)
     {
         //
@@ -632,11 +632,11 @@ void ScanFrame::DoAlign()
             //
             float xScale = (float)winHeight / (float)(ccdFrameWidth / 2);
             float yScale = (float)winWidth  / (float)ccdFrameHeight;
-            xRadius *= 4 * xScale;
-            yRadius *= 4 * yScale;
+            xRadius *= xScale;
+            yRadius *= yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(winWidth - 1 - trackStarY * yScale - yRadius, trackStarX * xScale - xRadius, yRadius * 2, xRadius * 2);
+            dc.DrawEllipse(winWidth - 1.5 - trackStarY * yScale - yRadius, trackStarX * xScale + 1.5 - xRadius, yRadius * 2, xRadius * 2);
         }
         if (tdiScanRate > 0.0)
         {
