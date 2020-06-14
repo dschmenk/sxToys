@@ -6,7 +6,6 @@ from astropy.visualization import astropy_mpl_style
 #plt.style.use(astropy_mpl_style)
 from astropy.io import fits
 
-s
 if len(argv) < 2 :
     print("Usage: ", argv[0], " <FITS file> [reduced FITS file]")
     exit(0)
