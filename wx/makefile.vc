@@ -1,14 +1,16 @@
 all:
-    cd wxWidgets\build\msw && $(MAKE) /f makefile.vc BUILD=release
-    cd sxfocus && $(MAKE) /f makefile.vc BUILD=release
-    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release
+    cd wxWidgets\build\msw && $(MAKE) /f makefile.vc BUILD=release SHARED=1
+    cd sxfocus && $(MAKE) /f makefile.vc BUILD=release SHARED=1
+    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release SHARED=1
     -rmdir /s /q sxToys-Win32
     mkdir sxToys-Win32
-    copy sxfocus\vc_mswu\sxfocus.exe sxToys-Win32
-    copy sxtdi\vc_mswu\sxtdi.exe sxToys-Win32
+    copy sxfocus\vc_mswudll\sxfocus.exe sxToys-Win32
+    copy sxtdi\vc_mswudll\sxtdi.exe sxToys-Win32
     copy ..\libsxccd\sxccd.dll sxToys-Win32
+	copy ..\cfitsio\build\cfitsio.dll sxToys-Win32
+	copy wxWidgets\lib\vc_dll\wxmsw30u_vc_sxwx.dll sxToys-Win32
 
 clean:
     -rmdir /s /q sxToys-Win32
-    cd sxfocus && $(MAKE) /f makefile.vc BUILD=release clean
-    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release clean
+    cd sxfocus && $(MAKE) /f makefile.vc BUILD=release SHARED=1 clean
+    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release SHRED=1 clean

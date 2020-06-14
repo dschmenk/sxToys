@@ -23,11 +23,11 @@ SXTDI_CXXFLAGS = /M$(__RUNTIME_LIBS_10)$(__DEBUGRUNTIME_4) /DWIN32 \
 	$(__NDEBUG_DEFINE_p) $(__EXCEPTIONS_DEFINE_p) $(__RTTI_DEFINE_p) \
 	$(__THREAD_DEFINE_p) $(__UNICODE_DEFINE_p) $(__MSLU_DEFINE_p) \
 	/I$(SETUPHDIR) /I$(WXWIN)\include $(____CAIRO_INCLUDEDIR_FILENAMES_p) /W4 /I. \
-	$(__DLLFLAG_p) /D_WINDOWS /I..\..\libsxccd  /I..\..\libaip /I..\..\fits\src \
+	$(__DLLFLAG_p) /D_WINDOWS /I..\..\libsxccd  /I..\..\libaip /I..\..\cfitsio \
 	/DNOPCH $(__RTTIFLAG_11) \
 	$(__EXCEPTIONSFLAG_12) $(CPPFLAGS) $(CXXFLAGS)
 SXTDI_OBJECTS =  \
-	$(OBJS)\sxtdi.obj $(OBJS)\sxutil.obj $(OBJS)\aip.obj $(OBJS)\fits.obj
+	$(OBJS)\sxtdi.obj $(OBJS)\sxutil.obj $(OBJS)\aip.obj ..\..\cfitsio\build\cfitsio.lib
 #    $(OBJS)\sxtdi.obj ..\..\libsxccd\sxutil.obj ..\..\libaip\aip.obj $(OBJS)\fits.obj
 SXTDI_RESOURCES =  \
 	$(OBJS)\sxtdi.res
@@ -360,12 +360,11 @@ $(OBJS)\sxtdi.exe: $(SXTDI_OBJECTS) $(OBJS)\sxtdi.res
 	$(SXTDI_OBJECTS) $(SXTDI_RESOURCES)  $(__WXLIB_CORE_p)  $(__WXLIB_BASE_p)  $(__WXLIB_MONO_p) $(__LIB_SCINTILLA_IF_MONO_p) $(__LIB_TIFF_p) $(__LIB_JPEG_p) $(__LIB_PNG_p)   wxzlib$(WXDEBUGFLAG).lib wxregex$(WXUNICODEFLAG)$(WXDEBUGFLAG).lib wxexpat$(WXDEBUGFLAG).lib $(EXTRALIBS_FOR_BASE) $(__UNICOWS_LIB_p) $(__CAIRO_LIB_p) kernel32.lib user32.lib gdi32.lib comdlg32.lib winspool.lib winmm.lib shell32.lib comctl32.lib ole32.lib oleaut32.lib uuid.lib rpcrt4.lib advapi32.lib wsock32.lib wininet.lib ../../libsxccd\sxccd.lib
 <<
 	copy ..\..\libsxccd\sxccd.dll $(OBJS)
+	copy ..\..\cfitsio\build\cfitsio.dll $(OBJS)
+	copy ..\wxWidgets\lib\vc_dll\wxmsw30u_vc_sxwx.dll $(OBJS)
 
 $(OBJS)\sxtdi.obj: .\sxtdi.cpp
 	$(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) .\sxtdi.cpp
-
-$(OBJS)\fits.obj: ..\..\fits\src\fits.c
-    $(CXX) /c /nologo /TP /Fo$@ $(SXTDI_CXXFLAGS) ..\..\fits\src\fits.c
 
 #..\..\libsxccd\sxutil.obj: ..\..\libsxccd\src\sxutil.c
 #    cd ..\..\libsxccd && $(MAKE) /f makefile.vc
