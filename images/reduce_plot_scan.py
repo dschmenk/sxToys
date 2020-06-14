@@ -26,7 +26,7 @@ for col in xrange(columns) :
     fscan[:,col] *= (1-scan_med)/(1-col_med)
     fscan[:,col] += scan_med
 
-if len(argv < 3) :
+if len(argv) < 3 :
     reduce_scan = 'reduce_scan.fits'
 else :
     reduce_scan = argv[2]
