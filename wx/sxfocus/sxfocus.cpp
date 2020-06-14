@@ -503,11 +503,11 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
             //
             float xScale = (float)focusWinWidth  / (float)zoomWidth;
             float yScale = (float)focusWinHeight / (float)zoomHeight;
-            xRadius *= xScale * 4;
-            yRadius *= yScale * 4;
+            xRadius *= 2 * xScale;
+            yRadius *= 2 * yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(xBestCentroid * xScale - xRadius, yBestCentroid * yScale - yRadius, xRadius * 2, yRadius * 2);
+            dc.DrawEllipse((xBestCentroid + 0.5) * xScale - xRadius, (yBestCentroid + 0.5) * yScale - yRadius, xRadius * 2, yRadius * 2);
         }
     }
     char minmax[20];

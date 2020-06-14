@@ -636,7 +636,7 @@ void ScanFrame::DoAlign()
             yRadius *= yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(winWidth - 1.5 - trackStarY * yScale - yRadius, trackStarX * xScale + 1.5 - xRadius, yRadius * 2, xRadius * 2);
+            dc.DrawEllipse(winWidth - 1 - (trackStarY + 0.5) * yScale - yRadius, (trackStarX + 0.5) * xScale - xRadius, yRadius * 2, xRadius * 2);
         }
         if (tdiScanRate > 0.0)
         {
