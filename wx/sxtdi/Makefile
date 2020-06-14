@@ -13,7 +13,7 @@ else
 CXX=`wx-config --cxx`
 CC=`wx-config --cxx`
 CXXFLAGS=`wx-config --cxxflags` -I ../../libsxccd -I ../../libaip
-LDLIBS=`wx-config --libs` -lusb-1.0 -lfitsio
+LDLIBS=`wx-config --libs` -lusb-1.0 -lcfitsio
 endif
 
 sxtdi: sxtdi.o ../../libsxccd/sxccd.o ../../libsxccd/sxutil.o ../../libaip/aip.o
