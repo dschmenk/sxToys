@@ -13,4 +13,4 @@ all:
 clean:
     -rmdir /s /q sxToys-Win32
     cd sxfocus && $(MAKE) /f makefile.vc BUILD=release SHARED=1 clean
-    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release SHRED=1 clean
+    cd sxtdi && $(MAKE) /f makefile.vc BUILD=release SHARED=1 clean
