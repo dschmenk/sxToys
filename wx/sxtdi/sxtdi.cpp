@@ -143,6 +143,7 @@ private:
     wxStopWatch   *trackWatch;
     wxImage       *scanImage;
     wxTimer        tdiTimer;
+    bool FitsWrite(char *filename);
     void DoAlign();
     void DoTDI();
     void GetDuration();
@@ -777,6 +778,9 @@ void ScanFrame::DoTDI()
                 char creator[] = "sxTDI";
                 char camera[]  = "StarLight Xpress Camera";
                 strcpy(filename, tdiFileName.c_str());
+#if 1
+                tdiFileSaved = FitsWrite(filename);
+#else
                 tdiFileSaved = fitsWrite(filename,
                                          (unsigned char *)&tdiFrame[ccdBinWidth * ccdBinHeight],
                                          ccdBinWidth,
@@ -784,6 +788,7 @@ void ScanFrame::DoTDI()
                                          tdiExposure,
                                          creator,
                                          camera) >= 0;
+#endif
             }
             Close(true);
         }
@@ -1021,6 +1026,36 @@ void ScanFrame::OnNew(wxCommandEvent& WXUNUSED(event))
         tdiFrame = NULL;
     }
 }
+bool ScanFrame::FitsWrite(char *filename)
+{
+    fitsfile *fptr;       /* pointer to the FITS file, defined in fitsio.h */
+    int       status   = 0;
+    long      exposure = (tdiLength - ccdBinHeight) * tdiExposure;
+    long      naxes[2] = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image is 300 pixels wide by 200 rows */
+    remove(filename);               /* Delete old file if it already exists */
+    status = 0;         /* initialize status before calling fitsio routines */
+    if (fits_create_file(&fptr, filename, &status)) /* create new FITS file */
+         return false;
+    /* write the required keywords for the primary array image.     */
+    /* Since bitpix = USHORT_IMG, this will cause cfitsio to create */
+    /* a FITS image with BITPIX = 16 (signed short integers) with   */
+    /* BSCALE = 1.0 and BZERO = 32768.  This is the convention that */
+    /* FITS uses to store unsigned integers.  Note that the BSCALE  */
+    /* and BZERO keywords will be automatically written by cfitsio  */
+    /* in this case.                                                */
+    if (fits_create_img(fptr,  USHORT_IMG, 2, naxes, &status))
+         return false;
+    /* write the array of unsigned integers, starting at first pixel, to the FITS file */
+    if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], &tdiFrame[ccdBinWidth * ccdBinHeight], &status))
+        return false;
+    /* write another optional keyword to the header */
+    /* Note that the ADDRESS of the value is passed in the routine */
+    if (fits_update_key(fptr, TLONG, "EXPOSURE", &exposure, "Total Exposure Time", &status))
+         return false;
+    if (fits_close_file(fptr, &status))                /* close the file */
+         return false;
+     return true;
+}
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
     char filename[255];
@@ -1036,6 +1071,9 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
                 tdiFilePath  = dlg.GetPath();
                 tdiFileName  = dlg.GetFilename();
                 strcpy(filename, tdiFilePath.c_str());
+#if 1
+                tdiFileSaved = FitsWrite(filename);
+#else
                 printf("Saving to file %s\n", filename);
                 tdiFileSaved = fitsWrite(filename,
                                          (unsigned char *)&tdiFrame[ccdBinWidth * ccdBinHeight],
@@ -1044,6 +1082,7 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
                                          tdiExposure,
                                          creator,
                                          camera) >= 0;
+#endif
             }
         }
         else
