@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=0.1
+Name=sxFocus
+GenericName=SX Camera Focussing
+Comment=Real time imager for Starlight Xpress cameras
+Type=Application
+Exec=sxfocus
+Icon=sxfocus
+MimeType=
+Categories=Education;Science;Astronomy;
+Keywords=FITS;Astronomy;Imaging;

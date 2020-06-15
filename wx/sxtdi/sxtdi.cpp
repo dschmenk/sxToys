@@ -263,7 +263,6 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
         }
         else
             printf("Invalid SX designation.\n");
-        printf("USB SX model type: 0x%02X\n", camUSBType);
     }
     if (parser.Found(wxT("c"), &initialCamIndex))
     {}
