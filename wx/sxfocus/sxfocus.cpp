@@ -239,7 +239,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
 #ifndef _MSC_VER
     menuCamera->Append(ID_OVERRIDE,   wxT("Set Camera &Model..."));
 #endif
-    menuCamera->Append(ID_SNAP,       wxT("^Snap Image\tSPACE"));
+    menuCamera->Append(ID_SNAP,       wxT("&Snap Image\tSPACE"));
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
