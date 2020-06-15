@@ -32,3 +32,7 @@ If you should start sxFocus before plugging in a camera, or you have multiple ca
 USB 1.1 module users under Linux or MacOS may need to override the camera model should it default to an MX5. For instance, if you have an MX7C connected, the initial focus window may look skewed and show that it is connected to an MX5 (the default for the USB 1.1 module). Simply select the correct camera model from 'Camera/Set Camera Model...' dialog.
 
 USB 1.1 module users under Windows should follow the process of upgrading the firmware here: https://github.com/dschmenk/sxToys/tree/master/Windows%20Drivers
+
+## Snapshot
+
+If you like the image on the screen, quickly pressing SPACEBAR will take a snapshot and save it. Each new snapshot will get an incrementing number appended to "sxfocus-" with a ".fits" extension.
