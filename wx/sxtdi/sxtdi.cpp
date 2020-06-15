@@ -775,20 +775,8 @@ void ScanFrame::DoTDI()
             if (tdiFrame)
             {
                 char filename[255];
-                char creator[] = "sxTDI";
-                char camera[]  = "StarLight Xpress Camera";
                 strcpy(filename, tdiFileName.c_str());
-#if 1
                 tdiFileSaved = FitsWrite(filename);
-#else
-                tdiFileSaved = fitsWrite(filename,
-                                         (unsigned char *)&tdiFrame[ccdBinWidth * ccdBinHeight],
-                                         ccdBinWidth,
-                                         tdiLength - ccdBinHeight,
-                                         tdiExposure,
-                                         creator,
-                                         camera) >= 0;
-#endif
             }
             Close(true);
         }
@@ -1029,9 +1017,11 @@ void ScanFrame::OnNew(wxCommandEvent& WXUNUSED(event))
 bool ScanFrame::FitsWrite(char *filename)
 {
     fitsfile *fptr;       /* pointer to the FITS file, defined in fitsio.h */
+    char creator[]     = "sxTDI";
+    char camera[]      = "StarLight Xpress Camera";
     int       status   = 0;
     long      exposure = (tdiLength - ccdBinHeight) * tdiExposure;
-    long      naxes[2] = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image is 300 pixels wide by 200 rows */
+    long      naxes[2] = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image size */
     remove(filename);               /* Delete old file if it already exists */
     status = 0;         /* initialize status before calling fitsio routines */
     if (fits_create_file(&fptr, filename, &status)) /* create new FITS file */
@@ -1050,7 +1040,13 @@ bool ScanFrame::FitsWrite(char *filename)
         return false;
     /* write another optional keyword to the header */
     /* Note that the ADDRESS of the value is passed in the routine */
+    if (fits_write_date(fptr, &status))
+         return false;
     if (fits_update_key(fptr, TLONG, "EXPOSURE", &exposure, "Total Exposure Time", &status))
+         return false;
+    if (fits_update_key(fptr, TSTRING, "CREATOR", creator, "Imaging Application", &status))
+         return false;
+    if (fits_update_key(fptr, TSTRING, "CAMERA", camera, "Imaging Device", &status))
          return false;
     if (fits_close_file(fptr, &status))                /* close the file */
          return false;
@@ -1059,8 +1055,6 @@ bool ScanFrame::FitsWrite(char *filename)
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
     char filename[255];
-    char creator[] = "sxTDI";
-    char camera[]  = "StarLight Xpress Camera";
     if (tdiState == STATE_IDLE)
     {
         wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT("*.fits"/*"FITS file (*.fits)"*/), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
@@ -1071,18 +1065,7 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
                 tdiFilePath  = dlg.GetPath();
                 tdiFileName  = dlg.GetFilename();
                 strcpy(filename, tdiFilePath.c_str());
-#if 1
                 tdiFileSaved = FitsWrite(filename);
-#else
-                printf("Saving to file %s\n", filename);
-                tdiFileSaved = fitsWrite(filename,
-                                         (unsigned char *)&tdiFrame[ccdBinWidth * ccdBinHeight],
-                                         ccdBinWidth,
-                                         tdiLength - ccdBinHeight,
-                                         tdiExposure,
-                                         creator,
-                                         camera) >= 0;
-#endif
             }
         }
         else
