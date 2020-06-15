@@ -1023,7 +1023,6 @@ bool ScanFrame::FitsWrite(char *filename)
     long exposure  = (tdiLength - ccdBinHeight) * tdiExposure;
     long naxes[2]  = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image size */
     remove(filename); // Delete old file if it already exists
-    status = 0;       // Initialize status before calling fitsio routines
     if (fits_create_file(&fptr, filename, &status))                                                            return false;
     if (fits_create_img(fptr, USHORT_IMG, 2, naxes, &status))                                                  return false;
     if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], &tdiFrame[ccdBinWidth * ccdBinHeight], &status)) return false;

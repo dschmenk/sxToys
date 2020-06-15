@@ -103,7 +103,7 @@ private:
     void InitLevels();
     bool ConnectCamera(int index);
     void CenterCentroid(float x, float y, int width, int height);
-    void OnSnapImage(wxTimerEvent& event);
+    void OnSnapImage(wxCommandEvent& event);
     void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
@@ -149,6 +149,7 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_TIMER(ID_TIMER,      FocusFrame::OnTimer)
     EVT_MENU(ID_CONNECT,     FocusFrame::OnConnect)
     EVT_MENU(ID_OVERRIDE,    FocusFrame::OnOverride)
+    EVT_MENU(ID_SNAP,        FocusFrame::OnSnapImage)
     EVT_MENU(ID_FILTER,      FocusFrame::OnFilter)
     EVT_MENU(ID_LEVEL_AUTO,  FocusFrame::OnAutoLevels)
     EVT_MENU(ID_LEVEL_RESET, FocusFrame::OnResetLevels)
@@ -411,7 +412,7 @@ void FocusFrame::CenterCentroid(float x, float y, int width, int height)
     else if (yOffset >= (ccdFrameHeight - height))
         yOffset = ccdFrameHeight - height - 1;
 }
-void FocusFrame::OnSnapImage(wxTimerEvent& WXUNUSED(event))
+void FocusFrame::OnSnapImage(wxCommandEvent& WXUNUSED(event))
 {
     if (!snapped)
     {
@@ -424,7 +425,6 @@ void FocusFrame::OnSnapImage(wxTimerEvent& WXUNUSED(event))
         long naxes[2]   = {zoomWidth, zoomHeight};   // image size
         sprintf(filename, "sxfocus-%03d.fits", snapCount++);
         remove(filename); // Delete old file if it already exists
-        status = 0;       // Initialize status before calling fitsio routines
         if (fits_create_file(&fptr, filename, &status))                                            return;
         if (fits_create_img(fptr, USHORT_IMG, 2, naxes, &status))                                  return;
         if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], ccdFrame, &status))              return;
@@ -433,6 +433,7 @@ void FocusFrame::OnSnapImage(wxTimerEvent& WXUNUSED(event))
         if (fits_update_key(fptr, TSTRING, "CREATOR",   creator,  "Imaging Application", &status)) return;
         if (fits_update_key(fptr, TSTRING, "CAMERA",    camera,   "Imaging Device",      &status)) return;
         if (fits_close_file(fptr, &status))                                                        return;
+        snapped = true;
         wxBell();
     }
 }
@@ -471,11 +472,11 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     if (!sxReadImage(camHandles[camSelect], // cam handle
                      ccdFrame, //pixbuf
                      pixCount)) // pix count
-     {
-         wxMessageBox("Camera Error", "SX TDI Alignment", wxOK | wxICON_INFORMATION);
-         return;
-     }
-     snapped = false;
+    {
+        wxMessageBox("Camera Error", "SX Focus", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    snapped = false;
     /*
      * Convert 16 bit samples to 24 BPP image
      */
