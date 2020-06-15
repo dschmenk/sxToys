@@ -12,11 +12,13 @@ Copy here and rename `wxWidgets`
     
     cd ..\..\..
 
-Download [CFITSIO Library](http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz)
+Download [CFITSIO Library](http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz) to ..
+
+    cd ..
 
     ren cfitsio-3.XX cfitsio
     
-    cd cfitsio
+    cd ../cfitsio
     
     mkdir build
     
@@ -26,7 +28,7 @@ Download [CFITSIO Library](http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cf
     
     cmake.exe --build . --config Release
     
-    cd ..\..
+    cd ..\..\wx
     
 Build toys
 
@@ -60,23 +62,31 @@ Select which min version to build to. Must have the appropriate SDK installed:
 
     cd ../..
     
-Build CFITSIO library
+Build CFITSIO library to ..
 
+    cd ..
+    
     ln -s cfitsio-3.48 cfitsio
     
     cd cfitsio
     
-    ./configure 
-
+    ./configure
+    
+    make
+    
+    cd ../wx
+    
+Build toys
+    
     make bundle
 
 ## Building for Linux
 
-Install development packages for `libwxgtk3.0-dev`
+Install development package `libwxgtk3.0-dev`
 
-Install development packages for `libusb-1.0-0-dev`
+Install development package `libusb-1.0-0-dev`
 
-Install development package for `libcfitsio-dev`
+Install development package `libcfitsio-dev`
 
     make
 
