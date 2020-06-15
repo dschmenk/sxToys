@@ -328,7 +328,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT, "&Connnect Camera...");
 #ifndef _MSC_VER
-    menuCamera->Append(ID_OVERRIDE, "&Set Camera Model...");
+    menuCamera->Append(ID_OVERRIDE, "Set Camera &Model...");
 #endif
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_NEW, "&New\tCtrl-N");
@@ -1016,41 +1016,23 @@ void ScanFrame::OnNew(wxCommandEvent& WXUNUSED(event))
 }
 bool ScanFrame::FitsWrite(char *filename)
 {
-    fitsfile *fptr;       /* pointer to the FITS file, defined in fitsio.h */
-    char creator[]     = "sxTDI";
-    char camera[]      = "StarLight Xpress Camera";
-    int       status   = 0;
-    long      exposure = (tdiLength - ccdBinHeight) * tdiExposure;
-    long      naxes[2] = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image size */
-    remove(filename);               /* Delete old file if it already exists */
-    status = 0;         /* initialize status before calling fitsio routines */
-    if (fits_create_file(&fptr, filename, &status)) /* create new FITS file */
-         return false;
-    /* write the required keywords for the primary array image.     */
-    /* Since bitpix = USHORT_IMG, this will cause cfitsio to create */
-    /* a FITS image with BITPIX = 16 (signed short integers) with   */
-    /* BSCALE = 1.0 and BZERO = 32768.  This is the convention that */
-    /* FITS uses to store unsigned integers.  Note that the BSCALE  */
-    /* and BZERO keywords will be automatically written by cfitsio  */
-    /* in this case.                                                */
-    if (fits_create_img(fptr,  USHORT_IMG, 2, naxes, &status))
-         return false;
-    /* write the array of unsigned integers, starting at first pixel, to the FITS file */
-    if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], &tdiFrame[ccdBinWidth * ccdBinHeight], &status))
-        return false;
-    /* write another optional keyword to the header */
-    /* Note that the ADDRESS of the value is passed in the routine */
-    if (fits_write_date(fptr, &status))
-         return false;
-    if (fits_update_key(fptr, TLONG, "EXPOSURE", &exposure, "Total Exposure Time", &status))
-         return false;
-    if (fits_update_key(fptr, TSTRING, "CREATOR", creator, "Imaging Application", &status))
-         return false;
-    if (fits_update_key(fptr, TSTRING, "CAMERA", camera, "Imaging Device", &status))
-         return false;
-    if (fits_close_file(fptr, &status))                /* close the file */
-         return false;
-     return true;
+    fitsfile *fptr;
+    char creator[] = "sxTDI";
+    char camera[]  = "StarLight Xpress Camera";
+    int  status    = 0;
+    long exposure  = (tdiLength - ccdBinHeight) * tdiExposure;
+    long naxes[2]  = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image size */
+    remove(filename); // Delete old file if it already exists
+    status = 0;       // Initialize status before calling fitsio routines
+    if (fits_create_file(&fptr, filename, &status))                                                            return false;
+    if (fits_create_img(fptr, USHORT_IMG, 2, naxes, &status))                                                  return false;
+    if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], &tdiFrame[ccdBinWidth * ccdBinHeight], &status)) return false;
+    if (fits_write_date(fptr, &status))                                                                        return false;
+    if (fits_update_key(fptr, TLONG,   "EXPOSURE", &exposure, "Total Exposure Time", &status))                 return false;
+    if (fits_update_key(fptr, TSTRING, "CREATOR",   creator,  "Imaging Application", &status))                 return false;
+    if (fits_update_key(fptr, TSTRING, "CAMERA",    camera,   "Imaging Device",      &status))                 return false;
+    if (fits_close_file(fptr, &status))                                                                        return false;
+    return true;
 }
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {

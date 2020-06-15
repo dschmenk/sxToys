@@ -97,11 +97,13 @@ private:
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
-    bool           pixelFilter, autoLevels;
+    bool           pixelFilter, autoLevels, snapped;
+    int            snapCount;
     wxTimer        focusTimer;
     void InitLevels();
     bool ConnectCamera(int index);
     void CenterCentroid(float x, float y, int width, int height);
+    void OnSnapImage(wxTimerEvent& event);
     void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
@@ -128,6 +130,7 @@ enum
     ID_TIMER = 1,
     ID_CONNECT,
     ID_OVERRIDE,
+    ID_SNAP,
     ID_FILTER,
     ID_LEVEL_AUTO,
     ID_LEVEL_RESET,
@@ -234,14 +237,15 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER
-    menuCamera->Append(ID_OVERRIDE,   wxT("&Set Camera Model..."));
+    menuCamera->Append(ID_OVERRIDE,   wxT("Set Camera &Model..."));
 #endif
+    menuCamera->Append(ID_SNAP,       wxT("^Snap Image\tSPACE"));
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
-    menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tSPACE"));
+    menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
     menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
     menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
     menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tE"));
@@ -260,6 +264,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
     CreateStatusBar(4);
+    snapCount   = 0;
     pixelFilter = false;
     ccdFrame    = NULL;
     camCount    = sxProbe(camHandles, camParams, camUSBType);
@@ -320,6 +325,7 @@ bool FocusFrame::ConnectCamera(int index)
         }
         SetClientSize(focusWinWidth, focusWinHeight);
     }
+    snapped    = true;
     focusZoom  = -1;
     zoomWidth  = ccdFrameWidth  >> -focusZoom;
     zoomHeight = ccdFrameHeight >> -focusZoom;
@@ -405,6 +411,31 @@ void FocusFrame::CenterCentroid(float x, float y, int width, int height)
     else if (yOffset >= (ccdFrameHeight - height))
         yOffset = ccdFrameHeight - height - 1;
 }
+void FocusFrame::OnSnapImage(wxTimerEvent& WXUNUSED(event))
+{
+    if (!snapped)
+    {
+        fitsfile *fptr;
+        char filename[30];
+        char creator[]  = "sxFocus";
+        char camera[]   = "StarLight Xpress Camera";
+        int  status     = 0;
+        long exposure   = focusExposure;
+        long naxes[2]   = {zoomWidth, zoomHeight};   // image size
+        sprintf(filename, "sxfocus-%03d.fits", snapCount++);
+        remove(filename); // Delete old file if it already exists
+        status = 0;       // Initialize status before calling fitsio routines
+        if (fits_create_file(&fptr, filename, &status))                                            return;
+        if (fits_create_img(fptr, USHORT_IMG, 2, naxes, &status))                                  return;
+        if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], ccdFrame, &status))              return;
+        if (fits_write_date(fptr, &status))                                                        return;
+        if (fits_update_key(fptr, TLONG,   "EXPOSURE", &exposure, "Total Exposure Time", &status)) return;
+        if (fits_update_key(fptr, TSTRING, "CREATOR",   creator,  "Imaging Application", &status)) return;
+        if (fits_update_key(fptr, TSTRING, "CAMERA",    camera,   "Imaging Device",      &status)) return;
+        if (fits_close_file(fptr, &status))                                                        return;
+        wxBell();
+    }
+}
 void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
     int focusWinWidth, focusWinHeight;
@@ -444,6 +475,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
          wxMessageBox("Camera Error", "SX TDI Alignment", wxOK | wxICON_INFORMATION);
          return;
      }
+     snapped = false;
     /*
      * Convert 16 bit samples to 24 BPP image
      */
