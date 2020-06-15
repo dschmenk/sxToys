@@ -1,5 +1,7 @@
 ## Building for Windows:
 
+With the addition of CFITSIO, the minimum Windows version is going to Window 7 32-bit (maybe Vista).
+
 Download [wxWidgets Windows Installer](https://www.wxwidgets.org/downloads/)
 
 Copy here and rename `wxWidgets`
@@ -74,7 +76,7 @@ Install development packages for `libwxgtk3.0-dev`
 
 Install development packages for `libusb-1.0-0-dev`
 
-Install development package for `libcfitsio3-dev`
+Install development package for `libcfitsio-dev`
 
     make
 
