@@ -39,8 +39,8 @@
 #include "sxfocus.h"
 #define MIN_ZOOM        -4
 #define MAX_ZOOM        4
-#define MAX_WHITE       0xFFFF
-#define MIN_BLACK       0
+#define MAX_WHITE       MAX_PIX
+#define MIN_BLACK       MIN_PIX
 #define MAX_BLACK       (MAX_WHITE/2)
 #define INC_BLACK       (MAX_BLACK/16)
 #define MIN_GAMMA       0.5
@@ -72,6 +72,9 @@ int FixedModels[] = {SXCCD_HX5,
 int     camUSBType      = 0;
 long    initialCamIndex = 0;
 int     ccdModel = SXCCD_MX5;
+/*
+ * Focus App class
+ */
 class FocusApp : public wxApp
 {
 public:
@@ -88,7 +91,7 @@ private:
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
     unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    float          ccdPixelWidth, ccdPixelHeight;
+    double         ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     float          xBestCentroid, yBestCentroid;
     int            xOffset, yOffset;
@@ -234,6 +237,7 @@ bool FocusApp::OnInit()
 }
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
+    CreateStatusBar(4);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER
@@ -263,7 +267,6 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuView,   wxT("&View"));
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
-    CreateStatusBar(4);
     snapCount   = 0;
     pixelFilter = false;
     ccdFrame    = NULL;

@@ -37,18 +37,10 @@
 #include <wx/cmdline.h>
 #include <wx/config.h>
 #include "sxsnap.h"
-#define MIN_ZOOM        -4
-#define MAX_ZOOM        4
-#define MAX_WHITE       0xFFFF
-#define MIN_BLACK       0
-#define MAX_BLACK       (MAX_WHITE/2)
-#define INC_BLACK       (MAX_BLACK/16)
-#define MIN_GAMMA       0.5
-#define MAX_GAMMA       2.5
-#define INC_GAMMA       0.5
-#define INC_EXPOSURE    100
-#define MIN_EXPOSURE    10
-#define MAX_EXPOSURE    (INC_EXPOSURE*21)
+#define MAX_SNAPSHOTS   100
+#define MAX_WHITE       MAX_PIX
+#define MIN_BLACK       MIN_PIX
+#define MAX_BLACK       MAX_WHITE/2
 /*
  * Camera Model Overrired for generic USB/USB2 interface
  */
@@ -79,6 +71,18 @@ long     initialCamIndex = 0;
 wxString initialBaseName = wxT("sxsnap");
 bool     autonomous      = false;
 int      ccdModel        = 0;
+/*
+ * Bin choices
+ */
+wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
+/*
+ * Gamma choices
+ */
+wxString GammaChoices[] = {wxT("1.0"), wxT("1.5"), wxT("2.0")};
+float GammaValues[] = {1.0, 1.5, 2.0};
+/*
+ * SnapShot App class
+ */
 class SnapApp : public wxApp
 {
 public:
@@ -95,38 +99,38 @@ private:
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
     unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    float          ccdPixelWidth, ccdPixelHeight;
+    unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY, ccdPixelCount;
+    double         ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
-    float          xBestCentroid, yBestCentroid;
-    int            xOffset, yOffset;
-    int            snapZoom, snapExposure;
-    int            zoomWidth, zoomHeight;
+    int            snapExposure, snapCount, snapDelay,  snapView, snapMax;
+    uint16_t      *snapShots[MAX_SNAPSHOTS];
+    bool           snapSaved[MAX_SNAPSHOTS];
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
-    bool           pixelFilter, autoLevels, snapped;
-    int            snapCount;
+    bool           pixelFilter, autoLevels;
     wxTimer        snapTimer;
     void InitLevels();
     bool ConnectCamera(int index);
     void CenterCentroid(float x, float y, int width, int height);
-    void OnSnapImage(wxCommandEvent& event);
+    void OnBackground(wxEraseEvent& event);
+    void OnPaint(wxPaintEvent& event);
     void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
+    void OnNew(wxCommandEvent& event);
+    void OnDelete(wxCommandEvent& event);
+    void OnSave(wxCommandEvent& event);
+    void OnSaveAll(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
     void OnAutoLevels(wxCommandEvent& event);
-    void OnResetLevels(wxCommandEvent& event);
-    void OnZoomIn(wxCommandEvent& event);
-    void OnZoomOut(wxCommandEvent& event);
-    void OnContrastInc(wxCommandEvent& event);
-    void OnContrastDec(wxCommandEvent& event);
-    void OnBrightnessInc(wxCommandEvent& event);
-    void OnBrightnessDec(wxCommandEvent& event);
-    void OnGammaInc(wxCommandEvent& event);
-    void OnGammaDec(wxCommandEvent& event);
-    void OnExposureInc(wxCommandEvent& event);
-    void OnExposureDec(wxCommandEvent& event);
+    void OnGamma(wxCommandEvent& event);
+    void OnStart(wxCommandEvent& event);
+    void OnNumber(wxCommandEvent& event);
+    void OnExposure(wxCommandEvent& event);
+    void OnDelay(wxCommandEvent& event);
+    void OnBinX(wxCommandEvent& event);
+    void OnBinY(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
@@ -137,39 +141,33 @@ enum
     ID_TIMER = 1,
     ID_CONNECT,
     ID_OVERRIDE,
-    ID_SNAP,
+    ID_DELETE,
+    ID_SAVE_ALL,
     ID_FILTER,
     ID_LEVEL_AUTO,
-    ID_LEVEL_RESET,
-    ID_ZOOM_IN,
-    ID_ZOOM_OUT,
-    ID_CONT_INC,
-    ID_CONT_DEC,
-    ID_BRITE_INC,
-    ID_BRITE_DEC,
-    ID_GAMMA_INC,
-    ID_GAMMA_DEC,
-    ID_EXPOSE_INC,
-    ID_EXPOSE_DEC,
+    ID_GAMMA,
+    ID_START,
+    ID_NUMBER,
+    ID_EXPOSURE,
+    ID_DELAY,
+    ID_BINX,
+    ID_BINY,
 };
 wxBEGIN_EVENT_TABLE(SnapFrame, wxFrame)
     EVT_TIMER(ID_TIMER,      SnapFrame::OnTimer)
     EVT_MENU(ID_CONNECT,     SnapFrame::OnConnect)
     EVT_MENU(ID_OVERRIDE,    SnapFrame::OnOverride)
-    EVT_MENU(ID_SNAP,        SnapFrame::OnSnapImage)
+    EVT_MENU(ID_DELETE,      SnapFrame::OnDelete)
+    EVT_MENU(ID_SAVE_ALL,    SnapFrame::OnSaveAll)
     EVT_MENU(ID_FILTER,      SnapFrame::OnFilter)
     EVT_MENU(ID_LEVEL_AUTO,  SnapFrame::OnAutoLevels)
-    EVT_MENU(ID_LEVEL_RESET, SnapFrame::OnResetLevels)
-    EVT_MENU(ID_ZOOM_IN,     SnapFrame::OnZoomIn)
-    EVT_MENU(ID_ZOOM_OUT,    SnapFrame::OnZoomOut)
-    EVT_MENU(ID_CONT_INC,    SnapFrame::OnContrastInc)
-    EVT_MENU(ID_CONT_DEC,    SnapFrame::OnContrastDec)
-    EVT_MENU(ID_BRITE_INC,   SnapFrame::OnBrightnessInc)
-    EVT_MENU(ID_BRITE_DEC,   SnapFrame::OnBrightnessDec)
-    EVT_MENU(ID_GAMMA_INC,   SnapFrame::OnGammaInc)
-    EVT_MENU(ID_GAMMA_DEC,   SnapFrame::OnGammaDec)
-    EVT_MENU(ID_EXPOSE_INC,  SnapFrame::OnExposureInc)
-    EVT_MENU(ID_EXPOSE_DEC,  SnapFrame::OnExposureDec)
+    EVT_MENU(ID_GAMMA,       SnapFrame::OnGamma)
+    EVT_MENU(ID_START,       SnapFrame::OnStart)
+    EVT_MENU(ID_NUMBER,      SnapFrame::OnNumber)
+    EVT_MENU(ID_EXPOSURE,    SnapFrame::OnExposure)
+    EVT_MENU(ID_DELAY,       SnapFrame::OnDelay)
+    EVT_MENU(ID_BINX,        SnapFrame::OnBinX)
+    EVT_MENU(ID_BINY,        SnapFrame::OnBinY)
     EVT_MENU(wxID_ABOUT,     SnapFrame::OnAbout)
     EVT_MENU(wxID_EXIT,      SnapFrame::OnExit)
     EVT_CLOSE(               SnapFrame::OnClose)
@@ -276,54 +274,87 @@ bool SnapApp::OnInit()
     }
     return false;
 }
-SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX Snap"), snapTimer(this, ID_TIMER)
+SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot"), snapTimer(this, ID_TIMER)
 {
+    CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER
     menuCamera->Append(ID_OVERRIDE,   wxT("Set Camera &Model..."));
 #endif
-    menuCamera->Append(ID_SNAP,       wxT("&Snap Image\tSPACE"));
+    menuCamera->AppendSeparator();
+    menuCamera->Append(wxID_NEW,      wxT("&New\tCtrl-N"));
+    menuCamera->Append(ID_DELETE,     wxT("&Delete\tCtrl-D"));
+    menuCamera->Append(wxID_SAVE,     wxT("&Save...\tCtrl-S"));
+    menuCamera->Append(ID_SAVE_ALL,   wxT("Save &All...\tCtrl-A"));
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
-    menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
-    menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
-    menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
-    menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tE"));
-    menuView->Append(ID_EXPOSE_DEC,          wxT("Exposure Dec\tW"));
-    menuView->Append(ID_CONT_INC,            wxT("Contrast Inc\tPGUP"));
-    menuView->Append(ID_CONT_DEC,            wxT("Contrast Dec\tPGDN"));
-    menuView->Append(ID_BRITE_INC,           wxT("Brightness Inc\tHOME"));
-    menuView->Append(ID_BRITE_DEC,           wxT("Brightness Dec\tEND"));
-    menuView->Append(ID_GAMMA_INC,           wxT("Gamma Inc\t]"));
-    menuView->Append(ID_GAMMA_DEC,           wxT("Gamma Dec\t["));
+    menuView->Append(ID_GAMMA,               wxT("&Gamma..."));
+    wxMenu *menuImage = new wxMenu;
+    menuImage->Append(ID_START,    wxT("Start...\tENTER"));
+    menuCamera->AppendSeparator();
+    menuImage->Append(ID_NUMBER,   wxT("Number..\tN"));
+    menuImage->Append(ID_EXPOSURE, wxT("Exposure..\tE"));
+    menuImage->Append(ID_DELAY,    wxT("Delay..\tD"));
+    menuImage->Append(ID_BINX,     wxT("&X Binning..."));
+    menuImage->Append(ID_BINY,     wxT("&Y Binning..."));
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
     menuBar->Append(menuCamera, wxT("&Camera"));
     menuBar->Append(menuView,   wxT("&View"));
+    menuBar->Append(menuImage,  wxT("&Image"));
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
-    CreateStatusBar(4);
-    snapCount   = 0;
-    pixelFilter = false;
-    ccdFrame    = NULL;
-    camCount    = sxProbe(camHandles, camParams, camUSBType);
+    snapFilePath = wxGetCwd();
+    snapBaseName = initialBaseName;
+    snapCount    = 1;
+    pixelFilter  = false;
+    pixelGamma   = 1.5;
+    ccdFrame     = NULL;
+    snapImage    = NULL;
+    snapView     = 0;
+    snapMax      = 0;
+    memset(snapShots, sizeof(unit16_t) * MAX_SNAPSHOTS);
+    snapExposure = initialExposure;
+    binX         = initialBinX;
+    binY         = initialBinY;
+    camCount     = sxProbe(camHandles, camParams, camUSBType);
     InitLevels();
     ConnectCamera(initialCamIndex);
 }
 void SnapFrame::InitLevels()
 {
-    snapExposure = MIN_EXPOSURE + INC_EXPOSURE;
-    pixelGamma    = 1.5;
-    pixelMin      = MAX_WHITE;
-    pixelMax      = MIN_BLACK;
-    pixelBlack    = MIN_BLACK;
-    pixelWhite    = MAX_WHITE;
+    pixelMin     = WHITE;
+    pixelMax     = BLACK;
+    pixelBlack   = BLACK;
+    pixelWhite   = WHITE;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
+}
+void ScanFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
+{
+}
+void ScanFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
+{
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        wxClientDC dc(this);
+        if (snapImage)
+        {
+            wxBitmap bitmap(snapImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+            dc.DrawBitmap(bitmap, 0, 0);
+        }
+        else
+        {
+            dc.SetBrush(wxBrush(*wxWHITE));
+            dc.DrawRectangle(0, 0, winWidth, winHeight);
+        }
+    }
 }
 bool SnapFrame::ConnectCamera(int index)
 {
@@ -369,8 +400,7 @@ bool SnapFrame::ConnectCamera(int index)
         }
         SetClientSize(snapWinWidth, snapWinHeight);
     }
-    snapped    = true;
-    snapZoom  = -1;
+    snapZoom   = -1;
     zoomWidth  = ccdFrameWidth  >> -snapZoom;
     zoomHeight = ccdFrameHeight >> -snapZoom;
     SetStatusText(statusText, 0);
@@ -439,29 +469,16 @@ void SnapFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
     }
 #endif
 }
-void SnapFrame::CenterCentroid(float x, float y, int width, int height)
+void OnNew(wxCommandEvent& event)
+{}
+void OnDelete(wxCommandEvent& event)
+{}
+void SnapFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
-    //
-    // Use centroid to center zoomed window
-    //
-    xOffset += x - width  / 2;
-    yOffset += y - height / 2;
-    if (xOffset < 0)
-        xOffset = 0;
-    else if (xOffset >= (ccdFrameWidth - width))
-        xOffset = ccdFrameWidth - width - 1;
-    if (yOffset < 0)
-        yOffset = 0;
-    else if (yOffset >= (ccdFrameHeight - height))
-        yOffset = ccdFrameHeight - height - 1;
-}
-void SnapFrame::OnSnapImage(wxCommandEvent& WXUNUSED(event))
-{
-    if (!snapped)
     {
         fitsfile *fptr;
         char filename[30];
-        char creator[]  = "sxSnap";
+        char creator[]  = "sxSnapShot";
         char camera[]   = "StarLight Xpress Camera";
         int  status     = 0;
         long exposure   = snapExposure;
@@ -479,6 +496,17 @@ void SnapFrame::OnSnapImage(wxCommandEvent& WXUNUSED(event))
         snapped = true;
         wxBell();
     }
+}
+void OnSaveAll(wxCommandEvent& event)
+{}
+void SnapFrame::OnFilter(wxCommandEvent& event)
+{
+    pixelFilter = event.IsChecked();
+    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
+}
+void SnapFrame::OnAutoLevels(wxCommandEvent& event)
+{
+    autoLevels = event.IsChecked();
 }
 void SnapFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
@@ -504,8 +532,8 @@ void SnapFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
         sxLatchImage(camHandles[camSelect], // cam handle
                      SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                      SXCCD_IMAGE_HEAD, // main ccd
-                     xOffset,    // xoffset
-                     yOffset,    // yoffset
+                     0,          // xoffset
+                     0,          // yoffset
                      zoomWidth,  // width
                      zoomHeight, // height
                      1, // xbin
@@ -519,7 +547,6 @@ void SnapFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
         wxMessageBox("Camera Error", "SX Snap", wxOK | wxICON_INFORMATION);
         return;
     }
-    snapped = false;
     /*
      * Convert 16 bit samples to 24 BPP image
      */
@@ -598,115 +625,159 @@ void SnapFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     snapTimer.StartOnce(snapExposure);
 }
-void SnapFrame::OnFilter(wxCommandEvent& event)
+void ScanFrame::Start()
 {
-    pixelFilter = event.IsChecked();
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnAutoLevels(wxCommandEvent& event)
-{
-    autoLevels = event.IsChecked();
-}
-void SnapFrame::OnResetLevels(wxCommandEvent& WXUNUSED(event))
-{
-    InitLevels();
-}
-void SnapFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
-{
-    char statusText[20];
-
-    if (snapZoom < MAX_ZOOM)
+    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+        return;
+    if (tdiExposure == 0.0)
     {
-        snapZoom++;
-        if (snapZoom < 1)
+        wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
+        return;
+    }
+    if (tdiMinutes == 0)
+    {
+        GetDuration();
+        if (tdiMinutes == 0)
+            return;
+    }
+    if (scanImage)
+        delete scanImage;
+    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
+    ccdBinHeight = ccdFrameHeight / ccdBinY;
+    scanImage    = new wxImage(ccdBinHeight * 2, ccdBinWidth);
+    binExposure  = tdiExposure * ccdBinY;
+    tdiLength    = tdiMinutes * 60000 / binExposure;
+    if (tdiLength < ccdBinHeight)
+        tdiLength = ccdBinHeight;
+    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    tdiFileSaved = false;
+    tdiRow       = 0;
+    tdiState     = STATE_SCANNING;
+    ENABLE_HIGH_RES_TIMER();
+    tdiThread = new ScanThread(this);
+    tdiThread->Run();
+    tdiTimer.Start(max(binExposure, MIN_SCREEN_UPDATE)); // Bound screen update rate
+}
+void ScanFrame::GetDuration()
+{
+	wxNumberEntryDialog dlg(this,
+							wxT(""),
+							wxT("Hours:"),
+							wxT("Scan Duration"),
+							6, 1, 12);
+	if (dlg.ShowModal() != wxID_OK)
+		return;
+	tdiMinutes = dlg.GetValue() * 60;
+}
+void ScanFrame::OnDuration(wxCommandEvent& WXUNUSED(event))
+{
+    if (tdiState == STATE_IDLE)
+        GetDuration();
+    else
+        wxBell();
+}
+void ScanFrame::OnRate(wxCommandEvent& WXUNUSED(event))
+{
+    char rateText[40] = "";
+    if (tdiState == STATE_IDLE)
+    {
+        if (tdiScanRate != 0.0)
+            sprintf(rateText, "%2.3f", tdiScanRate);
+        wxTextEntryDialog dlg(this,
+                              wxT("Rows/sec:"),
+                              wxT("Scan Rate"),
+                              rateText);
+        dlg.SetTextValidator(wxFILTER_NUMERIC);
+        dlg.SetMaxLength(6);
+        if (dlg.ShowModal() == wxID_OK )
         {
-            zoomWidth  = ccdFrameWidth  >> -snapZoom;
-            zoomHeight = ccdFrameHeight >> -snapZoom;
-            sprintf(statusText, "Bin: X%d", 1 << -snapZoom);
+            wxString value = dlg.GetValue();
+            tdiScanRate    = atof(value);
+            tdiExposure    = 1000.0 / tdiScanRate;
+            sprintf(rateText, "Rate: %2.3f row/s", tdiScanRate);
+            SetStatusText(rateText, 1);
         }
-        else
+    }
+    else
+        wxBell();
+}
+void ScanFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
+{
+    if (snapState == STATE_IDLE)
+    {
+        wxSingleChoiceDialog dlg(this,
+                              wxT("X Bin:"),
+                              wxT("X Binning"),
+                              3,
+                              BinChoices);
+        if (dlg.ShowModal() == wxID_OK )
         {
-            zoomWidth  = ccdFrameWidth >> snapZoom;
-            zoomHeight = ccdFrameHeight >> snapZoom;
-            xOffset += zoomWidth / 2;
-            yOffset += zoomHeight / 2;
-            CenterCentroid(xBestCentroid / 2, yBestCentroid / 2, zoomWidth, zoomHeight);
-            sprintf(statusText, "Zoom: %dX", 1 << snapZoom);
+            char binText[10];
+            ccdBinX =  1 << dlg.GetSelection();
+            sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
+            SetStatusText(binText, 2);
         }
-        SetStatusText(statusText, 1);
+    }
+    else
+        wxBell();
+}
+void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
+{
+    if (snapState == STATE_IDLE)
+    {
+        wxSingleChoiceDialog dlg(this,
+                              wxT("Y Bin:"),
+                              wxT("Y Binning"),
+                              3,
+                              BinChoices);
+        if (dlg.ShowModal() == wxID_OK )
+        {
+            char binText[10];
+            ccdBinY =  1 << dlg.GetSelection();
+            sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
+            SetStatusText(binText, 2);
+        }
     }
 }
-void SnapFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
+void SnapFrame::OnClose(wxCloseEvent& event)
 {
-    char statusText[20];
-
-    if (snapZoom > MIN_ZOOM)
+    int i;
+    //
+    // Any unsaved images?
+    //
+    for (i = 0; i < snapMax; i++)
     {
-        snapZoom--;
-        if (snapZoom < 1)
+        if (snapShots[i] && !snapSaved[i])
         {
-            zoomWidth  = ccdFrameWidth  >> -snapZoom;
-            zoomHeight = ccdFrameHeight >> -snapZoom;
-            xOffset = yOffset = 0;
-            sprintf(statusText, "Bin: X%d", 1 << -snapZoom);
+            if (wxMessageBox("Save images before exiting?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxYES)
+            {
+                wxCommandEvent eventSaveAll;
+                OnSaveAll(eventSaveAll);
+            }
+            break;
         }
-        else
-        {
-            zoomWidth  = ccdFrameWidth >> snapZoom;
-            zoomHeight = ccdFrameHeight >> snapZoom;
-            xOffset -= zoomWidth / 4;
-            yOffset -= zoomHeight / 4;
-            CenterCentroid(xBestCentroid * 2, yBestCentroid * 2, zoomWidth, zoomHeight);
-            sprintf(statusText, "Zoom: %dX", 1 << snapZoom);
-        }
-        SetStatusText(statusText, 1);
     }
-}
-void SnapFrame::OnContrastInc(wxCommandEvent& WXUNUSED(event))
-{
-    pixelWhite = (pixelWhite + pixelBlack) / 2 + 1;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnContrastDec(wxCommandEvent& WXUNUSED(event))
-{
-    pixelWhite += (pixelWhite - pixelBlack);
-    if (pixelWhite > MAX_WHITE) pixelWhite = MAX_WHITE;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnBrightnessInc(wxCommandEvent& WXUNUSED(event))
-{
-    pixelBlack -= INC_BLACK;
-    if (pixelBlack < MIN_BLACK) pixelBlack = MIN_BLACK;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnBrightnessDec(wxCommandEvent& WXUNUSED(event))
-{
-    pixelBlack += INC_BLACK;
-    if (pixelBlack >= pixelWhite) pixelBlack = pixelWhite - 1;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnGammaInc(wxCommandEvent& WXUNUSED(event))
-{
-    if (pixelGamma < MAX_GAMMA) pixelGamma += INC_GAMMA;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnGammaDec(wxCommandEvent& WXUNUSED(event))
-{
-    if (pixelGamma > MIN_GAMMA) pixelGamma -= INC_GAMMA;
-    calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
-}
-void SnapFrame::OnExposureInc(wxCommandEvent& WXUNUSED(event))
-{
-    if (snapExposure < MAX_EXPOSURE) snapExposure += INC_EXPOSURE;
-}
-void SnapFrame::OnExposureDec(wxCommandEvent& WXUNUSED(event))
-{
-    if (snapExposure > MIN_EXPOSURE) snapExposure -= INC_EXPOSURE;
-}
-void SnapFrame::OnClose(wxCloseEvent& WXUNUSED(event))
-{
-    if (snapTimer.IsRunning())
-        snapTimer.Stop();
+    //
+    // Free up the images
+    //
+    for (i = 0; i < snapMax; i++)
+    {
+        if (snapShots[i])
+        {
+            free(snapShots[i]);
+            snapShots[i] = NULL;
+        }
+        snapMax = 0;
+    }
+    if (snapImage != NULL)
+    {
+        delete snapImage;
+        snapImage = NULL;
+    }
+    //
+    // Release the cameras
+    //
 	if (camCount)
 	{
 		sxRelease(camHandles, camCount);
@@ -720,5 +791,5 @@ void SnapFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 }
 void SnapFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    wxMessageBox("Starlight Xpress Snapser\nVersion 0.1 Alpha 3\nCopyright (c) 2003-2020, David Schmenk", "About SX Snap", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress SnapShot\nVersion 0.1 Alpha 3\nCopyright (c) 2003-2020, David Schmenk", "About SX SnapShot", wxOK | wxICON_INFORMATION);
 }

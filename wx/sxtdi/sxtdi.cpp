@@ -50,7 +50,7 @@
 #define SCAN_ERR_CAMERA     ((wxThread::ExitCode)-2)
 #define MAX_WHITE           MAX_PIX
 #define INC_BLACK           1024
-#define MIN_BLACK           0
+#define MIN_BLACK           MIN_PIX
 #define MAX_BLACK           MAX_WHITE/2
 int ccdModel = SXCCD_MX5;
 /*
@@ -130,7 +130,7 @@ protected:
     int            tdiState;
     unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY, ccdPixelCount;
-    float          ccdPixelWidth, ccdPixelHeight;
+    double         ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     uint16_t      *tdiFrame;
     float          pixelGamma;
@@ -148,9 +148,11 @@ private:
     void DoTDI();
     void GetDuration();
     bool ConnectCamera(int index);
+    void OnBackground(wxEraseEvent& event);
+    void OnPaint(wxPaintEvent& event);
+    void OnTimer(wxTimerEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
-    void OnTimer(wxTimerEvent& event);
     void OnNew(wxCommandEvent& event);
     void OnSave(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
@@ -164,8 +166,6 @@ private:
     void OnBinY(wxCommandEvent& event);
     void OnGamma(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
-    void OnBackground(wxEraseEvent& event);
-    void OnPaint(wxPaintEvent& event);
     void OnClose(wxCloseEvent& event);
     wxDECLARE_EVENT_TABLE();
 };
@@ -325,34 +325,34 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
 {
     CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
-    menuCamera->Append(ID_CONNECT, "&Connnect Camera...");
+    menuCamera->Append(ID_CONNECT, wxT("&Connnect Camera..."));
 #ifndef _MSC_VER
-    menuCamera->Append(ID_OVERRIDE, "Set Camera &Model...");
+    menuCamera->Append(ID_OVERRIDE, wxT("Set Camera &Model..."));
 #endif
     menuCamera->AppendSeparator();
-    menuCamera->Append(wxID_NEW, "&New\tCtrl-N");
-    menuCamera->Append(wxID_SAVE, "&Save...\tCtrl-S");
+    menuCamera->Append(wxID_NEW,  wxT("&New\tCtrl-N"));
+    menuCamera->Append(wxID_SAVE, wxT("&Save...\tCtrl-S"));
     menuCamera->AppendSeparator();
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
-    menuView->Append(ID_GAMMA, "&Gamma...");
+    menuView->Append(ID_GAMMA,           wxT("&Gamma..."));
     wxMenu *menuScan = new wxMenu;
-    menuScan->Append(ID_ALIGN, "&Align\tA");
-    menuScan->Append(ID_SCAN, "&TDI Scan\tT");
-    menuScan->Append(ID_STOP, "S&top\tCtrl-T");
+    menuScan->Append(ID_ALIGN, wxT("&Align\tA"));
+    menuScan->Append(ID_SCAN,  wxT("&TDI Scan\tT"));
+    menuScan->Append(ID_STOP,  wxT("S&top\tCtrl-T"));
     menuScan->AppendSeparator();
-    menuScan->Append(ID_DURATION, "Scan &Duration...\tD");
-    menuScan->Append(ID_RATE, "Scan &Rate...");
-    menuScan->Append(ID_BINX, "&X Binning...");
-    menuScan->Append(ID_BINY, "&Y Binning...");
+    menuScan->Append(ID_DURATION, wxT("Scan &Duration...\tD"));
+    menuScan->Append(ID_RATE,     wxT("Scan &Rate..."));
+    menuScan->Append(ID_BINX,     wxT("&X Binning..."));
+    menuScan->Append(ID_BINY,     wxT("&Y Binning..."));
     wxMenu *menuHelp = new wxMenu;
     menuHelp->Append(wxID_ABOUT);
     wxMenuBar *menuBar = new wxMenuBar;
-    menuBar->Append(menuCamera, "&Camera");
-    menuBar->Append(menuView, "&View");
-    menuBar->Append(menuScan, "&Scan");
-    menuBar->Append(menuHelp, "&Help");
+    menuBar->Append(menuCamera, wxT("&Camera"));
+    menuBar->Append(menuView,   wxT("&View"));
+    menuBar->Append(menuScan,   wxT("&Scan"));
+    menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
     tdiFilePath = wxGetCwd();
     tdiFileName = initialFileName;
@@ -369,6 +369,28 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     scanImage   = NULL;
     camCount    = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
+}
+void ScanFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
+{
+}
+void ScanFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
+{
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        wxClientDC dc(this);
+        if (scanImage)
+        {
+            wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+            dc.DrawBitmap(bitmap, 0, 0);
+        }
+        else
+        {
+            dc.SetBrush(wxBrush(*wxWHITE));
+            dc.DrawRectangle(0, 0, winWidth, winHeight);
+        }
+    }
 }
 bool ScanFrame::ConnectCamera(int index)
 {
@@ -481,28 +503,6 @@ void ScanFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 		}
 	}
 #endif
-}
-void ScanFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
-{
-}
-void ScanFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
-{
-    int winWidth, winHeight;
-    GetClientSize(&winWidth, &winHeight);
-    if (winWidth > 0 && winHeight > 0)
-    {
-        wxClientDC dc(this);
-        if (scanImage)
-        {
-            wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
-            dc.DrawBitmap(bitmap, 0, 0);
-        }
-        else
-        {
-            dc.SetBrush(wxBrush(*wxWHITE));
-            dc.DrawRectangle(0, 0, winWidth, winHeight);
-        }
-    }
 }
 void ScanFrame::DoAlign()
 {

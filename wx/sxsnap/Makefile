@@ -20,12 +20,12 @@ sxsnap: sxsnap.o ../../libsxccd/sxccd.o ../../libsxccd/sxutil.o ../../libaip/aip
 
 clean:
 	-rm sxsnap *.o
-	-rm sxSnap.app/Contents/MacOS/sxsnap
+	-rm sxSnapShot.app/Contents/MacOS/sxsnap
 
 ifeq ($(OS), Darwin)
 bundle: sxsnap
-	-mkdir sxSnap.app/Contents/MacOS
-	cp sxsnap sxSnap.app/Contents/MacOS
+	-mkdir sxSnapShot.app/Contents/MacOS
+	cp sxsnap sxSnapShot.app/Contents/MacOS
 else
 install: sxsnap
 	$(MAKE) -C ../../libsxccd/ install
