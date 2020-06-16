@@ -7,7 +7,6 @@ all:
     copy sxfocus\vc_mswudll\sxfocus.exe sxToys-Win32
     copy sxtdi\vc_mswudll\sxtdi.exe sxToys-Win32
     copy ..\libsxccd\sxccd.dll sxToys-Win32
-	copy ..\cfitsio\build\cfitsio.dll sxToys-Win32
 	copy wxWidgets\lib\vc_dll\wxmsw30u_vc_sxwx.dll sxToys-Win32
 
 clean:
