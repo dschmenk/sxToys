@@ -15,7 +15,7 @@ typedef signed   short int16_t;
 #endif
 #include "sxutil.h"
 #include "aip.h"
-#include "fitsio.h"
+#include "fits.h"
 #ifndef max
 #define max(a,b)            ((a)>=(b)?(a):(b))
 #endif

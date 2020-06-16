@@ -23,12 +23,11 @@ SXFOCUS_CXXFLAGS = /M$(__RUNTIME_LIBS_10)$(__DEBUGRUNTIME_4) /DWIN32 \
 	$(__NDEBUG_DEFINE_p) $(__EXCEPTIONS_DEFINE_p) $(__RTTI_DEFINE_p) \
 	$(__THREAD_DEFINE_p) $(__UNICODE_DEFINE_p) $(__MSLU_DEFINE_p) \
 	/I$(SETUPHDIR) /I$(WXWIN)\include $(____CAIRO_INCLUDEDIR_FILENAMES_p) /W4 /I. \
-    $(__DLLFLAG_p) /D_WINDOWS /I..\..\libsxccd  /I..\..\libaip /I..\..\cfitsio \
+    $(__DLLFLAG_p) /D_WINDOWS /I..\..\libsxccd  /I..\..\libaip /I..\..\fits \
 	/DNOPCH $(__RTTIFLAG_11) \
 	$(__EXCEPTIONSFLAG_12) $(CPPFLAGS) $(CXXFLAGS)
 SXFOCUS_OBJECTS =  \
-	$(OBJS)\sxfocus.obj $(OBJS)\sxutil.obj $(OBJS)\aip.obj ..\..\cfitsio\build\cfitsio.lib
-#    $(OBJS)\sxfocus.obj ..\..\libsxccd\sxutil.obj ..\..\libaip\aip.obj
+	$(OBJS)\sxfocus.obj $(OBJS)\sxutil.obj $(OBJS)\aip.obj $(OBJS)\fits.obj
 SXFOCUS_RESOURCES =  \
 	$(OBJS)\sxfocus.res
 
@@ -360,22 +359,19 @@ $(OBJS)\sxfocus.exe: $(SXFOCUS_OBJECTS) $(OBJS)\sxfocus.res
 	$(SXFOCUS_OBJECTS) $(SXFOCUS_RESOURCES)  $(__WXLIB_CORE_p)  $(__WXLIB_BASE_p)  $(__WXLIB_MONO_p) $(__LIB_SCINTILLA_IF_MONO_p) $(__LIB_TIFF_p) $(__LIB_JPEG_p) $(__LIB_PNG_p)   wxzlib$(WXDEBUGFLAG).lib wxregex$(WXUNICODEFLAG)$(WXDEBUGFLAG).lib wxexpat$(WXDEBUGFLAG).lib $(EXTRALIBS_FOR_BASE) $(__UNICOWS_LIB_p) $(__CAIRO_LIB_p) kernel32.lib user32.lib gdi32.lib comdlg32.lib winspool.lib winmm.lib shell32.lib comctl32.lib ole32.lib oleaut32.lib uuid.lib rpcrt4.lib advapi32.lib wsock32.lib wininet.lib ../../libsxccd\sxccd.lib
 <<
 	copy ..\..\libsxccd\sxccd.dll $(OBJS)
-    copy ..\..\cfitsio\build\cfitsio.dll $(OBJS)
 	copy ..\wxWidgets\lib\vc_dll\wxmsw30u_vc_sxwx.dll $(OBJS)
 
 $(OBJS)\sxfocus.obj: .\sxfocus.cpp
 	$(CXX) /c /nologo /TP /Fo$@ $(SXFOCUS_CXXFLAGS) .\sxfocus.cpp
 
-#..\..\libsxccd\sxutil.obj: ..\..\libsxccd\src\sxutil.c
-#    cd ..\..\libsxccd && $(MAKE) /f makefile.vc
-
 $(OBJS)\sxutil.obj: ..\..\libsxccd\src\sxutil.c
     $(CXX) /c /nologo /TP /Fo$@ $(SXFOCUS_CXXFLAGS) ..\..\libsxccd\src\sxutil.c
 
-#..\..\libaip\aip.obj: ..\..\libaip\src\aip.c
-#    cd ..\..\libaip && $(MAKE) /f makefile.vc
 $(OBJS)\aip.obj: ..\..\libaip\src\aip.c
     $(CXX) /c /nologo /TP /Fo$@ $(SXFOCUS_CXXFLAGS) ..\..\libaip\src\aip.c
+
+$(OBJS)\fits.obj: ..\..\fits\src\fits.c
+    $(CXX) /c /nologo /TP /Fo$@ $(SXFOCUS_CXXFLAGS) ..\..\fits\src\fits.c
 
 $(OBJS)\sxfocus.res: sxFocusMSW\sxfocus.rc
 	rc /fo$@  /d WIN32 $(____DEBUGRUNTIME_3_p_1) /d _CRT_SECURE_NO_DEPRECATE=1 /d _CRT_NON_CONFORMING_SWPRINTFS=1 /d _SCL_SECURE_NO_WARNINGS=1 $(__NO_VC_CRTDBG_p_1)  /d __WXMSW__ $(__WXUNIV_DEFINE_p_1) $(__DEBUG_DEFINE_p_1) $(__NDEBUG_DEFINE_p_1) $(__EXCEPTIONS_DEFINE_p_1) $(__RTTI_DEFINE_p_1) $(__THREAD_DEFINE_p_1) $(__UNICODE_DEFINE_p_1) $(__MSLU_DEFINE_p_1) /i $(SETUPHDIR) /i $(WXWIN)\include $(____CAIRO_INCLUDEDIR_FILENAMES_1_p) /i . $(__DLLFLAG_p_1) /d _WINDOWS /d NOPCH sxFocusMSW\sxfocus.rc

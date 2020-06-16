@@ -20,23 +20,127 @@
 #define FITS_CARD_COUNT     36
 #define FITS_CARD_SIZE      80
 #define FITS_RECORD_SIZE    (FITS_CARD_COUNT*FITS_CARD_SIZE)
+#define FITS_CARD_COMMENT   21
 #define BZERO               32768
+static int             fits_fd, fits_card, image_width, image_height;
+static char            fits_record[FITS_CARD_COUNT+10][FITS_CARD_SIZE]; // Add a little buffer space
+static unsigned short *image_pixels;
+
 /*
  * Convert unsigned LE pixels to signed BE pixels.
  */
-static void convert_pixels(unsigned short *src, unsigned short *dst, unsigned short offset, int count)
+static void convert_pixels(unsigned short *src, unsigned short *dst, int offset, int count)
 {
     unsigned short pixel;
 
     while (count--)
     {
-	pixel = *src++ - offset;
+        pixel = *src++ - offset;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	pixel = ((pixel & 0xFF00) >> 8) | ((pixel & 0x00FF) << 8);
+	   pixel = ((pixel & 0xFF00) >> 8) | ((pixel & 0x00FF) << 8);
 #endif
-	*dst++ = pixel;
+	   *dst++ = pixel;
     }
 }
+int fits_write_key_int(const char *key, int value, const char *comment)
+{
+    sprintf(fits_record[fits_card], "%8s= %20d", key, value);
+    if (comment)
+        sprintf(fits_record[fits_card] + FITS_CARD_COMMENT, "/ %s", comment);
+    return ++fits_card >= FITS_CARD_COUNT;
+}
+int fits_write_key_float(const char *key, float value, const char *comment)
+{
+    sprintf(fits_record[fits_card], "%8s= %20f", key, value);
+    if (comment)
+        sprintf(fits_record[fits_card] + FITS_CARD_COMMENT, "/ %s", comment);
+    return ++fits_card >= FITS_CARD_COUNT;
+}
+int fits_write_key_string(const char *key, const char * value, const char *comment)
+{
+    sprintf(fits_record[fits_card], "%8s= '%s'", key, value);
+    if (comment)
+        sprintf(fits_record[fits_card] + FITS_CARD_COMMENT, "/ %s", comment);
+    return ++fits_card >= FITS_CARD_COUNT;
+}
+int fits_write_image(unsigned short *pixels, int width, int height)
+{
+    /*
+     * Fill out image header values.
+     */
+    sprintf(fits_record[fits_card++], "BITPIX  = %20d", 16);
+    sprintf(fits_record[fits_card++], "NAXIS   = %20d", 2);
+    sprintf(fits_record[fits_card++], "NAXIS1  = %20d", width);
+    sprintf(fits_record[fits_card++], "NAXIS2  = %20d", height);
+    sprintf(fits_record[fits_card++], "BZERO   = %20f", (float)BZERO);
+    sprintf(fits_record[fits_card++], "BSCALE  = %20f", 1.0);
+    /*
+     * Save image values.
+     */
+    image_width  = width;
+    image_height = height;
+    image_pixels = (unsigned short *)pixels;
+    return ++fits_card >= FITS_CARD_COUNT;
+}
+/*
+ * Init FITS header and image array.
+ */
+int fits_open(const char *filename)
+{
+    /*
+     * Create file.
+     */
+    if ((fits_fd = creat(filename, 0666)) < 0)
+        return fits_fd;
+    /*
+     * Init header and pixel pointers
+     */
+    memset(fits_record, FITS_RECORD_SIZE, ' ');
+    sprintf(fits_record[0], "SIMPLE  = %20c", 'T');
+    fits_card = 1;
+    return 0;
+}
+/*
+ * Write out header and image array then close file.
+ */
+int fits_close(void)
+{
+    int i, image_end, image_pitch;
+    unsigned short *fits_pixels;
+    /*
+     * End header and convert NULLS to spaces.
+     */
+    sprintf(fits_record[fits_card], "END");
+    for (i = 0; i < FITS_RECORD_SIZE; i++)
+        if (((char *)fits_record)[i] == '\0')
+            ((char *)fits_record)[i] = ' ';
+    if (write(fits_fd, fits_record, FITS_RECORD_SIZE) != FITS_RECORD_SIZE)
+        return -1;
+    /*
+     * Convert and write image data.
+     */
+    image_end  = image_width * (image_height - 1);
+    image_pitch = image_width * 2;
+    fits_pixels = (unsigned short *)malloc(image_pitch);
+    for (i = 0; i < image_height; i++)
+    {
+        convert_pixels(image_pixels + image_end - i * image_width, fits_pixels, BZERO, image_width);
+        if (write(fits_fd, fits_pixels, image_pitch) != image_pitch)
+        {
+            free(fits_pixels);
+            return -1;
+        }
+    }
+    free(fits_pixels);
+    return close(fits_fd);
+}
+int fits_cleanup(void)
+{
+    if (fits_fd > 0)
+        close(fits_fd);
+    return (fits_fd = 0);
+}
+#if 0
 /*
  * Save image to FITS file.
  */
@@ -108,3 +212,4 @@ int fits_write(char *filename, unsigned char *pixels, int width, int height, int
     }
     return close(fd);
 }
+#endif

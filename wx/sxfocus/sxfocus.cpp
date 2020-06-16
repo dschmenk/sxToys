@@ -418,23 +418,14 @@ void FocusFrame::OnSnapImage(wxCommandEvent& WXUNUSED(event))
 {
     if (!snapped)
     {
-        fitsfile *fptr;
         char filename[30];
-        char creator[]  = "sxFocus";
-        char camera[]   = "StarLight Xpress Camera";
-        int  status     = 0;
-        long exposure   = focusExposure;
-        long naxes[2]   = {zoomWidth, zoomHeight};   // image size
         sprintf(filename, "sxfocus-%03d.fits", snapCount++);
-        remove(filename); // Delete old file if it already exists
-        if (fits_create_file(&fptr, filename, &status))                                            return;
-        if (fits_create_img(fptr, USHORT_IMG, 2, naxes, &status))                                  return;
-        if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], ccdFrame, &status))              return;
-        if (fits_write_date(fptr, &status))                                                        return;
-        if (fits_update_key(fptr, TLONG,   "EXPOSURE", &exposure, "Total Exposure Time", &status)) return;
-        if (fits_update_key(fptr, TSTRING, "CREATOR",   creator,  "Imaging Application", &status)) return;
-        if (fits_update_key(fptr, TSTRING, "CAMERA",    camera,   "Imaging Device",      &status)) return;
-        if (fits_close_file(fptr, &status))                                                        return;
+        if (fits_open(filename))                                                          {fits_cleanup(); return;}
+        if (fits_write_image(ccdFrame, zoomWidth, zoomHeight))                            {fits_cleanup(); return;}
+        if (fits_write_key_int("EXPOSURE", focusExposure, "Total Exposure Time"))         {fits_cleanup(); return;}
+        if (fits_write_key_string("CREATOR", "sxFocus", "Imaging Application"))           {fits_cleanup(); return;}
+        if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")) {fits_cleanup(); return;}
+        if (fits_close())                                                                 {fits_cleanup(); return;}
         snapped = true;
         wxBell();
     }

@@ -1015,21 +1015,12 @@ void ScanFrame::OnNew(wxCommandEvent& WXUNUSED(event))
 }
 bool ScanFrame::FitsWrite(char *filename)
 {
-    fitsfile *fptr;
-    char creator[] = "sxTDI";
-    char camera[]  = "StarLight Xpress Camera";
-    int  status    = 0;
-    long exposure  = (tdiLength - ccdBinHeight) * tdiExposure;
-    long naxes[2]  = {ccdBinWidth, tdiLength - ccdBinHeight};   /* image size */
-    remove(filename); // Delete old file if it already exists
-    if (fits_create_file(&fptr, filename, &status))                                                            return false;
-    if (fits_create_img(fptr, USHORT_IMG, 2, naxes, &status))                                                  return false;
-    if (fits_write_img(fptr, TUSHORT, 1, naxes[0] * naxes[1], &tdiFrame[ccdBinWidth * ccdBinHeight], &status)) return false;
-    if (fits_write_date(fptr, &status))                                                                        return false;
-    if (fits_update_key(fptr, TLONG,   "EXPOSURE", &exposure, "Total Exposure Time", &status))                 return false;
-    if (fits_update_key(fptr, TSTRING, "CREATOR",   creator,  "Imaging Application", &status))                 return false;
-    if (fits_update_key(fptr, TSTRING, "CAMERA",    camera,   "Imaging Device",      &status))                 return false;
-    if (fits_close_file(fptr, &status))                                                                        return false;
+    if (fits_open(filename))                                                                             return fits_cleanup();
+    if (fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, ccdBinHeight))              return fits_cleanup();
+    if (fits_write_key_int("EXPOSURE", (tdiLength - ccdBinHeight) * tdiExposure, "Total Exposure Time")) return fits_cleanup();
+    if (fits_write_key_string("CREATOR", "sxTDI", "Imaging Application"))                                return fits_cleanup();
+    if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device"))                    return fits_cleanup();
+    if (fits_close())                                                                                    return fits_cleanup();
     return true;
 }
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
