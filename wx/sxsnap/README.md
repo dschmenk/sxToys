@@ -5,7 +5,7 @@
 - Plug in camera to USB port
 - Launch sxSnapShot
 
-Enter the number of snap shots to take and exposure duration. Then take them. Review the images by moving forward and backward with 'F' ad 'B'. Delete what you don't want, save the rest.
+Enter the number of snap shots to take and exposure duration. Then take them. Review the images by moving forward and backward with 'F' and 'B'. Delete what you don't want, save the rest.
 
 ## Camera Options
 
@@ -17,4 +17,4 @@ USB 1.1 module users under Windows should follow the process of upgrading the fi
 
 ## Autonomous
 
-sxSnapShot can be run from the command line or a script to automate taking and saving up up to 100 images.
+sxSnapShot can be run from the command line or a script to automate taking and saving up to 100 images.
