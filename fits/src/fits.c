@@ -20,7 +20,7 @@
 #define FITS_CARD_COUNT     36
 #define FITS_CARD_SIZE      80
 #define FITS_RECORD_SIZE    (FITS_CARD_COUNT*FITS_CARD_SIZE)
-#define FITS_CARD_COMMENT   21
+#define FITS_CARD_COMMENT   31
 #define BZERO               32768
 static int             fits_fd, fits_card, image_width, image_height;
 static char            fits_record[FITS_CARD_COUNT+10][FITS_CARD_SIZE]; // Add a little buffer space
@@ -44,23 +44,23 @@ static void convert_pixels(unsigned short *src, unsigned short *dst, int offset,
 }
 int fits_write_key_int(const char *key, int value, const char *comment)
 {
-    sprintf(fits_record[fits_card], "%8s= %20d", key, value);
+    sprintf(fits_record[fits_card], "%-8s= %20d", key, value);
     if (comment)
         sprintf(fits_record[fits_card] + FITS_CARD_COMMENT, "/ %s", comment);
     return ++fits_card >= FITS_CARD_COUNT;
 }
 int fits_write_key_float(const char *key, float value, const char *comment)
 {
-    sprintf(fits_record[fits_card], "%8s= %20f", key, value);
+    sprintf(fits_record[fits_card], "%-8s= %20f", key, value);
     if (comment)
         sprintf(fits_record[fits_card] + FITS_CARD_COMMENT, "/ %s", comment);
     return ++fits_card >= FITS_CARD_COUNT;
 }
 int fits_write_key_string(const char *key, const char * value, const char *comment)
 {
-    sprintf(fits_record[fits_card], "%8s= '%s'", key, value);
+    sprintf(fits_record[fits_card], "%-8s= '%s'", key, value);
     if (comment)
-        sprintf(fits_record[fits_card] + FITS_CARD_COMMENT, "/ %s", comment);
+        sprintf(fits_record[fits_card] + FITS_CARD_COMMENT + (strlen(value) > 18 ? strlen(value) - 18 : 0), "/ %s", comment);
     return ++fits_card >= FITS_CARD_COUNT;
 }
 int fits_write_image(unsigned short *pixels, int width, int height)
@@ -80,7 +80,7 @@ int fits_write_image(unsigned short *pixels, int width, int height)
     image_width  = width;
     image_height = height;
     image_pixels = (unsigned short *)pixels;
-    return ++fits_card >= FITS_CARD_COUNT;
+    return fits_card >= FITS_CARD_COUNT;
 }
 /*
  * Init FITS header and image array.
@@ -95,7 +95,7 @@ int fits_open(const char *filename)
     /*
      * Init header and pixel pointers
      */
-    memset(fits_record, FITS_RECORD_SIZE, ' ');
+    memset(fits_record, ' ', FITS_RECORD_SIZE);
     sprintf(fits_record[0], "SIMPLE  = %20c", 'T');
     fits_card = 1;
     return 0;
@@ -112,7 +112,7 @@ int fits_close(void)
      */
     sprintf(fits_record[fits_card], "END");
     for (i = 0; i < FITS_RECORD_SIZE; i++)
-        if (((char *)fits_record)[i] == '\0')
+        if (((char *)fits_record)[i] < ' ')
             ((char *)fits_record)[i] = ' ';
     if (write(fits_fd, fits_record, FITS_RECORD_SIZE) != FITS_RECORD_SIZE)
         return -1;

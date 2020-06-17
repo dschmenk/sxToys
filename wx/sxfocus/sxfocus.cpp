@@ -90,8 +90,8 @@ private:
 	HANDLE         camHandles[SXCCD_MAX_CAMS];
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
-    unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    double         ccdPixelWidth, ccdPixelHeight;
+    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth, ccdPixelCount;
+    float          ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     float          xBestCentroid, yBestCentroid;
     int            xOffset, yOffset;
@@ -182,10 +182,6 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
     wxString *modelString = new wxString(' ', 10);
     if (parser.Found(wxT("m"), modelString))
     {
-        //wxPrintf("Overriding SX camera model with: %s\n", modelString->c_str());
-        //
-        // Validate ccdModel
-        //
         if (toupper(modelString->GetChar(1)) == 'X')
         {
             switch (toupper(modelString->GetChar(0)))
@@ -223,7 +219,7 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
 }
 bool FocusApp::OnInit()
 {
-    #ifndef _MSC_VER
+#ifndef _MSC_VER
     wxConfig config(wxT("sxFocus"), wxT("sxToys"));
     config.Read(wxT("USB1Camera"), &camUSBType);
 #endif
@@ -238,6 +234,18 @@ bool FocusApp::OnInit()
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
     CreateStatusBar(4);
+    snapCount   = 0;
+    ccdFrame    = NULL;
+    autoLevels  = false;
+    pixelFilter = false;
+    pixelGamma  = 1.5;
+    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+    config.Read(wxT("AutoLevels"), &autoLevels);
+    config.Read(wxT("RedFilter"),  &pixelFilter);
+    config.Read(wxT("Gamma"),      &pixelGamma);
+    InitLevels();
+    camCount = sxProbe(camHandles, camParams, camUSBType);
+    ConnectCamera(initialCamIndex);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER
@@ -248,7 +256,9 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
+    menuView->Check(ID_FILTER,               pixelFilter);
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
+    menuView->Check(ID_LEVEL_AUTO,           autoLevels);
     menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
     menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
     menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
@@ -267,17 +277,10 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuView,   wxT("&View"));
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
-    snapCount   = 0;
-    pixelFilter = false;
-    ccdFrame    = NULL;
-    camCount    = sxProbe(camHandles, camParams, camUSBType);
-    InitLevels();
-    ConnectCamera(initialCamIndex);
 }
 void FocusFrame::InitLevels()
 {
     focusExposure = MIN_EXPOSURE + INC_EXPOSURE;
-    pixelGamma    = 1.5;
     pixelMin      = MAX_WHITE;
     pixelMax      = MIN_BLACK;
     pixelBlack    = MIN_BLACK;
@@ -298,12 +301,14 @@ bool FocusFrame::ConnectCamera(int index)
             index = camCount - 1;
         camSelect      = index;
         ccdModel       = sxGetCameraModel(camHandles[camSelect]);
+        ccdFrameDepth  = camParams[camSelect].bits_per_pixel;
         ccdFrameWidth  = camParams[camSelect].width;
         ccdFrameHeight = camParams[camSelect].height;
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
+        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1, 1);
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
         focusTimer.StartOnce(focusExposure);
         sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
@@ -478,30 +483,22 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     uint16_t      *m16 = ccdFrame;
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
+    for (int l = 0; l < zoomHeight*zoomWidth; l++)
+    {
+        if (*m16 < pixelMin) pixelMin = *m16;
+        if (*m16 > pixelMax) pixelMax = *m16;
+        rgb[0] = redLUT[LUT_INDEX(*m16)];
+        rgb[1] =
+        rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
+        rgb   += 3;
+        m16++;
+    }
     if (autoLevels)
     {
-        for (int l = 0; l < zoomHeight*zoomWidth; l++)
-        {
-            if (*m16 < pixelMin) pixelMin = *m16;
-            if (*m16 > pixelMax) pixelMax = *m16;
-            m16++;
-        }
-        m16        = ccdFrame; // Reset CCD image pointer
         pixelBlack = pixelMin;
         pixelWhite = pixelMax;
         calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
     }
-    for (int y = 0; y < zoomHeight; y++)
-        for (int x = 0; x < zoomWidth; x++)
-        {
-            if (*m16 < pixelMin) pixelMin = *m16;
-            if (*m16 > pixelMax) pixelMax = *m16;
-            rgb[0] = redLUT[LUT_INDEX(*m16)];
-            rgb[1] =
-            rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
-            rgb   += 3;
-            m16++;
-        }
     GetClientSize(&focusWinWidth, &focusWinHeight);
     if (focusWinWidth > 0 && focusWinHeight > 0)
     {
@@ -524,9 +521,9 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
                              1.0))
         {
             CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
-            //
-            // Draw ellipse around best star depicting FWHM
-            //
+            /*
+             * Draw ellipse around best star depicting FWHM
+             */
             float xScale = (float)focusWinWidth  / (float)zoomWidth;
             float yScale = (float)focusWinHeight / (float)zoomHeight;
             xRadius *= 2 * xScale;
@@ -535,6 +532,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
             dc.DrawEllipse((xBestCentroid + 0.5) * xScale - xRadius, (yBestCentroid + 0.5) * yScale - yRadius, xRadius * 2, yRadius * 2);
         }
+        Refresh();
     }
     char minmax[20];
     sprintf(minmax, "Min: %d", pixelMin);
@@ -662,6 +660,10 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+    config.Write(wxT("RedFilter"),  pixelFilter);
+    config.Write(wxT("AutoLevels"), autoLevels);
+    config.Write(wxT("Gamma"),      pixelGamma);
     Destroy();
 }
 void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))

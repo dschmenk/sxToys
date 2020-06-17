@@ -2,10 +2,12 @@ all:
     cd wxWidgets\build\msw && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx
     cd sxfocus && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx
     cd sxtdi && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx
+    cd sxsnap && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx
     -rmdir /s /q sxToys-Win32
     mkdir sxToys-Win32
     copy sxfocus\vc_mswudll\sxfocus.exe sxToys-Win32
     copy sxtdi\vc_mswudll\sxtdi.exe sxToys-Win32
+    copy sxsnap\vc_mswudll\sxsnap.exe sxToys-Win32
     copy ..\libsxccd\sxccd.dll sxToys-Win32
 	copy wxWidgets\lib\vc_dll\wxmsw30u_vc_sxwx.dll sxToys-Win32
 
@@ -13,3 +15,4 @@ clean:
     -rmdir /s /q sxToys-Win32
     cd sxfocus && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx clean
     cd sxtdi && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx clean
+    cd sxsnap && $(MAKE) /f makefile.vc BUILD=release SHARED=1 MONOLITHIC=1 VENDOR=sxwx clean

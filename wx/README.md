@@ -1,6 +1,8 @@
+Note: I've backed out the CFITSIO library. Just too big and too many changes just to write simple little FITS images. If I need to read FITS images, I will return to CFITSIO for those operations.
+
 ## Building for Windows:
 
-With the addition of CFITSIO, the minimum Windows version is going to Windows 7 32-bit (maybe Vista).
+~With the addition of CFITSIO, the minimum Windows version is going to Windows 7 32-bit (maybe Vista).~
 
 Download [wxWidgets Windows Installer](https://www.wxwidgets.org/downloads/)
 
@@ -12,23 +14,23 @@ Copy here and rename `wxWidgets`
     
     cd ..\..\..
 
-Download [CFITSIO Library](http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz) to ..
+~Download [CFITSIO Library](http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz) to ..~
 
-    cd ..
+~cd ..~
 
-    ren cfitsio-3.XX cfitsio
+~ren cfitsio-3.XX cfitsio~
     
-    cd ../cfitsio
+~cd ../cfitsio~
     
-    mkdir build
+~mkdir build~
     
-    cd build
+~cd build~
     
-    cmake.exe -G "NMake Makefiles" ..
+~cmake.exe -G "NMake Makefiles" ..~
     
-    cmake.exe --build . --config Release
-    
-    cd ..\..\wx
+~cmake.exe --build . --config Release~
+
+~cd ..\..\wx~
     
 Build toys
 
@@ -62,19 +64,19 @@ Select which min version to build to. Must have the appropriate SDK installed:
 
     cd ../..
     
-Build CFITSIO library to ..
+~Build CFITSIO library to ..~
 
-    cd ..
+~cd ..~
     
-    ln -s cfitsio-3.48 cfitsio
+~ln -s cfitsio-3.48 cfitsio~
     
-    cd cfitsio
+~cd cfitsio~
     
-    ./configure
+~./configure~
     
-    make
+~make~
     
-    cd ../wx
+~cd ../wx~
     
 Build toys
     
@@ -86,7 +88,7 @@ Install development package `libwxgtk3.0-dev`
 
 Install development package `libusb-1.0-0-dev`
 
-Install development package `libcfitsio-dev`
+~Install development package `libcfitsio-dev`~
 
     make
 

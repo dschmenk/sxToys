@@ -79,6 +79,9 @@ USB 1.1 module users under Windows should follow the process of upgrading the fi
 
 sxTDI will save the image to a FITS file. You can stop the scan at anytime without losing the data collected. Just save the image before starting a new scan. Otherwise, let it run and come back later (probably the morning). It’s a bit like Christmas morning looking at the result. How many galaxies can you spot? I use [GIMP](https://gimp.org), the Gnu Image Manipulation Program, which has greatly improved in the last few years to deal with higher bit depth images and can read FITS files directly.
 
+## Autonomous
+
+sxTDI can be run from the command line or script to automatically take a TDI image.
 
 ## [Image Reduction](https://github.com/dschmenk/sxToys/tree/master/images)
 
