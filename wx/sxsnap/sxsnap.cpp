@@ -122,6 +122,7 @@ private:
     void CenterCentroid(float x, float y, int width, int height);
     void OnBackground(wxEraseEvent& event);
     void OnPaint(wxPaintEvent& event);
+    void SnapStatus();
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
     bool AreSaved();
@@ -372,9 +373,24 @@ void SnapFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
         }
     }
 }
-bool SnapFrame::ConnectCamera(int index)
+void SnapFrame::SnapStatus()
 {
     char statusText[40];
+    if (camCount)
+        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
+    else
+        strcpy(statusText, "Attached: None");
+    SetStatusText(statusText, 0);
+    if (snapMax)
+        sprintf(statusText, "%d/%d@%d,%d", snapView + 1, snapMax, snapExposure, snapDelay);
+    else
+        sprintf(statusText, "-/-@%d,%d", snapExposure, snapDelay);
+    SetStatusText(statusText, 1);
+    sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
+    SetStatusText(statusText, 2);
+}
+bool SnapFrame::ConnectCamera(int index)
+{
     int snapWinWidth, snapWinHeight;
     InitLevels();
     if (camCount)
@@ -388,7 +404,6 @@ bool SnapFrame::ConnectCamera(int index)
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-        sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
     else
     {
@@ -397,7 +412,6 @@ bool SnapFrame::ConnectCamera(int index)
         ccdFrameWidth = ccdFrameHeight = 512;
         ccdFrameDepth = 16;
         ccdPixelWidth = ccdPixelHeight = 1;
-        strcpy(statusText, "Attached: None");
     }
     if (!IsMaximized())
     {
@@ -410,11 +424,7 @@ bool SnapFrame::ConnectCamera(int index)
         }
         SetClientSize(snapWinWidth, snapWinHeight);
     }
-    SetStatusText(statusText, 0);
-    sprintf(statusText, "%d/%d@%d,%d", snapView, snapMax, snapExposure, snapDelay);
-    SetStatusText(statusText, 1);
-    sprintf(statusText, "Bin: %d:%d", ccdBinX, ccdBinY);
-    SetStatusText(statusText, 2);
+    SnapStatus();
     return camSelect >= 0;
 }
 void SnapFrame::OnConnect(wxCommandEvent& WXUNUSED(event))
@@ -439,9 +449,7 @@ void SnapFrame::OnConnect(wxCommandEvent& WXUNUSED(event))
     if (dlg.ShowModal() == wxID_OK )
         ConnectCamera(dlg.GetSelection());
     else if (camSelect)
-    {
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-    }
 }
 void SnapFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 {
@@ -512,6 +520,8 @@ void SnapFrame::OnNew(wxCommandEvent& event)
      * Free up the images
      */
     FreeShots();
+    UpdateView(0);
+    SnapStatus();
 }
 void SnapFrame::OnDelete(wxCommandEvent& event)
 {
@@ -526,6 +536,7 @@ void SnapFrame::OnDelete(wxCommandEvent& event)
     snapShots[snapMax] = NULL;
     snapSaved[snapMax] = true;
     UpdateView(snapView);
+    SnapStatus();
 }
 void SnapFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
@@ -549,6 +560,7 @@ void SnapFrame::OnSave(wxCommandEvent& WXUNUSED(event))
     }
     else
         wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
+    SnapStatus();
 }
 void SnapFrame::OnSaveAll(wxCommandEvent& event)
 {
@@ -577,6 +589,7 @@ void SnapFrame::OnSaveAll(wxCommandEvent& event)
                 }
             }
         }
+        SnapStatus();
     }
     else
         wxMessageBox("No images to save", "Save Error", wxOK | wxICON_INFORMATION);
@@ -619,6 +632,7 @@ void SnapFrame::UpdateView(int view)
     {
         wxClientDC dc(this);
         wxBitmap bitmap(snapImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+        Refresh();
     }
 }
 void SnapFrame::OnFilter(wxCommandEvent& event)
@@ -649,10 +663,12 @@ void SnapFrame::OnGamma(wxCommandEvent& WXUNUSED(event))
 void SnapFrame::OnForward(wxCommandEvent& WXUNUSED(event))
 {
     UpdateView(snapView + 1);
+    SnapStatus();
 }
 void SnapFrame::OnBackward(wxCommandEvent& WXUNUSED(event))
 {
     UpdateView(snapView - 1);
+    SnapStatus();
 }
 void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
 {
@@ -676,7 +692,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                          timeTotal,
                          this,
                          wxPD_CAN_ABORT
-                       | wxPD_APP_MODAL
+                      // | wxPD_APP_MODAL
                        | wxPD_ELAPSED_TIME
                        | wxPD_REMAINING_TIME);
     for (i = 0; i < snapMax; i++)
@@ -754,6 +770,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
         }
         snapMax = i + 1;
         UpdateView(i);
+        SnapStatus();
         snapSaved[i] = false;
         if (!dlg.Update(timeElapsed))
             goto cancelled;
@@ -783,6 +800,7 @@ void SnapFrame::OnExposure(wxCommandEvent& WXUNUSED(event))
 	if (dlg.ShowModal() != wxID_OK)
 		return;
 	snapExposure = dlg.GetValue();
+    SnapStatus();
 }
 void SnapFrame::OnDelay(wxCommandEvent& WXUNUSED(event))
 {
@@ -794,6 +812,7 @@ void SnapFrame::OnDelay(wxCommandEvent& WXUNUSED(event))
 	if (dlg.ShowModal() != wxID_OK)
 		return;
 	snapDelay = dlg.GetValue();
+    SnapStatus();
 }
 void SnapFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
 {
@@ -809,6 +828,7 @@ void SnapFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
         sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
         SetStatusText(binText, 2);
     }
+    SnapStatus();
 }
 void SnapFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
 {
@@ -824,6 +844,7 @@ void SnapFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
         sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
         SetStatusText(binText, 2);
     }
+    SnapStatus();
 }
 void SnapFrame::OnClose(wxCloseEvent& event)
 {
