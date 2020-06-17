@@ -126,8 +126,8 @@ wxMANIFEST_ID 24 "wx/msw/wx.manifest"
 #endif // !defined(wxUSE_NO_MANIFEST) || (wxUSE_NO_MANIFEST == 0)
 
 //csquery         BITMAP "sxFocusMSW\sxfocus.bmp"
-wxDEFAULT_FRAME	ICON "sxFocusMSW\sxfocus.ico"
-wxSTD_FRAME 	ICON "sxFocusMSW\sxfocus.ico"
-wxICON_AAA  	ICON "sxFocusMSW\sxfocus.ico"
+wxDEFAULT_FRAME	ICON "sxSnapMSW\sxsnap.ico"
+wxSTD_FRAME 	ICON "sxSnapMSW\sxsnap.ico"
+wxICON_AAA  	ICON "sxSnapMSW\sxsnap.ico"
 
 
