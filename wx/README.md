@@ -2,7 +2,7 @@ Note: I've backed out the CFITSIO library. Just too big and too many changes jus
 
 ## Building for Windows:
 
-With the addition of CFITSIO, the minimum Windows version is going to Windows 7 32-bit (maybe Vista).
+~With the addition of CFITSIO, the minimum Windows version is going to Windows 7 32-bit (maybe Vista).~
 
 Download [wxWidgets Windows Installer](https://www.wxwidgets.org/downloads/)
 
