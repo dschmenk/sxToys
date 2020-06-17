@@ -241,8 +241,8 @@ bool SnapApp::OnCmdLineParsed(wxCmdLineParser &parser)
 }
 bool SnapApp::OnInit()
 {
-    #ifndef _MSC_VER
-    wxConfig config(wxT("sxSnap"), wxT("sxToys"));
+#ifndef _MSC_VER
+    wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
     config.Read(wxT("USB1Camera"), &camUSBType);
 #endif
     if (wxApp::OnInit())
@@ -265,6 +265,24 @@ bool SnapApp::OnInit()
 }
 SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
 {
+    memset(snapShots, 0, sizeof(uint16_t) * MAX_SNAPSHOTS);
+    snapFilePath = wxGetCwd();
+    snapBaseName = initialBaseName;
+    snapCount    = initialCount;
+    snapImage    = NULL;
+    snapView     = 0;
+    snapMax      = 0;
+    snapExposure = initialExposure;
+    autoLevels   = false;
+    pixelFilter  = false;
+    pixelGamma   = 1.5;
+    wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
+    config.Read(wxT("AutoLevels"), &autoLevels);
+    config.Read(wxT("RedFilter"),  &pixelFilter);
+    config.Read(wxT("Gamma"),      &pixelGamma);
+    InitLevels();
+    camCount = sxProbe(camHandles, camParams, camUSBType);
+    ConnectCamera(initialCamIndex);
     CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
@@ -280,7 +298,9 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
+    menuView->Check(ID_FILTER,               pixelFilter);
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
+    menuView->Check(ID_LEVEL_AUTO,           autoLevels);
     menuView->Append(ID_GAMMA,               wxT("&Gamma..."));
     menuView->Append(ID_FORWARD,             wxT("&Next Image\tF"));
     menuView->Append(ID_BACKWARD,            wxT("&Previous Image\tB"));
@@ -297,20 +317,6 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     menuBar->Append(menuImage,  wxT("&Image"));
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
-    snapFilePath = wxGetCwd();
-    snapBaseName = initialBaseName;
-    snapCount    = initialCount;
-    autoLevels   = false;
-    pixelFilter  = false;
-    pixelGamma   = 1.5;
-    snapImage    = NULL;
-    snapView     = 0;
-    snapMax      = 0;
-    snapExposure = initialExposure;
-    memset(snapShots, 0, sizeof(uint16_t) * MAX_SNAPSHOTS);
-    camCount     = sxProbe(camHandles, camParams, camUSBType);
-    InitLevels();
-    ConnectCamera(initialCamIndex);
 }
 void SnapFrame::InitLevels()
 {
@@ -352,7 +358,11 @@ void SnapFrame::SnapStatus()
         strcpy(statusText, "Attached: None");
     SetStatusText(statusText, 0);
     if (snapMax)
+    {
         sprintf(statusText, "%d/%d", snapView + 1, snapMax);
+        if (!snapSaved[snapView])
+            strcat(statusText, "*");
+    }
     else
         sprintf(statusText, "-/-");
     SetStatusText(statusText, 1);
@@ -850,6 +860,10 @@ void SnapFrame::OnClose(wxCloseEvent& event)
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+    wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
+    config.Write(wxT("RedFilter"),  pixelFilter);
+    config.Write(wxT("AutoLevels"), autoLevels);
+    config.Write(wxT("Gamma"),      pixelGamma);
     Destroy();
 }
 void SnapFrame::OnExit(wxCommandEvent& WXUNUSED(event))

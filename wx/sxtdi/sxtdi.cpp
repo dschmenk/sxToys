@@ -301,9 +301,9 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
 bool ScanApp::OnInit()
 {
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
-    config.Read(wxT("ScanRate"), &initialRate);
-    config.Read(wxT("BinX"),     &initialBinX);
-    config.Read(wxT("BinY"),     &initialBinY);
+    config.Read(wxT("ScanRate"),   &initialRate);
+    config.Read(wxT("BinX"),       &initialBinX);
+    config.Read(wxT("BinY"),       &initialBinY);
 #ifndef _MSC_VER
     config.Read(wxT("USB1Camera"), &camUSBType);
 #endif
@@ -326,6 +326,24 @@ bool ScanApp::OnInit()
 }
 ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, ID_TIMER)
 {
+    tdiFilePath = wxGetCwd();
+    tdiFileName = initialFileName;
+    tdiFrame    = NULL;
+    tdiState    = STATE_IDLE;
+    tdiMinutes  = initialDuration * 60;
+    ccdBinX     = initialBinX;
+    ccdBinY     = initialBinY;
+    tdiScanRate = initialRate;
+    tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0.0;
+    ccdFrame    = NULL;
+    scanImage   = NULL;
+    pixelFilter = false;
+    pixelGamma  = 1.0;
+    wxConfig config(wxT("sxTDI"), wxT("sxToys"));
+    config.Read(wxT("RedFilter"),  &pixelFilter);
+    config.Read(wxT("Gamma"),      &pixelGamma);
+    camCount = sxProbe(camHandles, camParams, camUSBType);
+    ConnectCamera(initialCamIndex);
     CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT, wxT("&Connnect Camera..."));
@@ -340,6 +358,7 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER, wxT("&Red Filter\tR"));
     menuView->Append(ID_GAMMA,           wxT("&Gamma..."));
+    menuView->Check(ID_FILTER,           pixelFilter);
     wxMenu *menuScan = new wxMenu;
     menuScan->Append(ID_ALIGN, wxT("&Align\tA"));
     menuScan->Append(ID_SCAN,  wxT("&TDI Scan\tT"));
@@ -357,21 +376,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     menuBar->Append(menuScan,   wxT("&Scan"));
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
-    tdiFilePath = wxGetCwd();
-    tdiFileName = initialFileName;
-    tdiFrame    = NULL;
-    tdiState    = STATE_IDLE;
-    tdiMinutes  = initialDuration * 60;
-    ccdBinX     = initialBinX;
-    ccdBinY     = initialBinY;
-    tdiScanRate = initialRate;
-    tdiExposure = tdiScanRate > 0.0 ? 1000.0 / tdiScanRate : 0.0;
-    pixelGamma  = 1.0;
-    pixelFilter = false;
-    ccdFrame    = NULL;
-    scanImage   = NULL;
-    camCount    = sxProbe(camHandles, camParams, camUSBType);
-    ConnectCamera(initialCamIndex);
 }
 void ScanFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
 {
@@ -1116,9 +1120,11 @@ void ScanFrame::OnClose(wxCloseEvent& event)
 		camCount = 0;
 	}
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
-    config.Write(wxT("ScanRate"), tdiScanRate);
-    config.Write(wxT("BinX"), ccdBinX);
-    config.Write(wxT("BinY"), ccdBinY);
+    config.Write(wxT("RedFilter"),  pixelFilter);
+    config.Write(wxT("Gamma"),      pixelGamma);
+    config.Write(wxT("ScanRate"),   tdiScanRate);
+    config.Write(wxT("BinX"),       ccdBinX);
+    config.Write(wxT("BinY"),       ccdBinY);
     Destroy();
 }
 void ScanFrame::OnExit(wxCommandEvent& WXUNUSED(event))

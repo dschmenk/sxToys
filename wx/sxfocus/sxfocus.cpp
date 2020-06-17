@@ -219,7 +219,7 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
 }
 bool FocusApp::OnInit()
 {
-    #ifndef _MSC_VER
+#ifndef _MSC_VER
     wxConfig config(wxT("sxFocus"), wxT("sxToys"));
     config.Read(wxT("USB1Camera"), &camUSBType);
 #endif
@@ -233,6 +233,18 @@ bool FocusApp::OnInit()
 }
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
+    snapCount   = 0;
+    ccdFrame    = NULL;
+    autoLevels  = false;
+    pixelFilter = false;
+    pixelGamma  = 1.5;
+    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+    config.Read(wxT("AutoLevels"), &autoLevels);
+    config.Read(wxT("RedFilter"),  &pixelFilter);
+    config.Read(wxT("Gamma"),      &pixelGamma);
+    InitLevels();
+    camCount = sxProbe(camHandles, camParams, camUSBType);
+    ConnectCamera(initialCamIndex);
     CreateStatusBar(4);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
@@ -244,7 +256,9 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuCamera->Append(wxID_EXIT);
     wxMenu *menuView = new wxMenu;
     menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
+    menuView->Check(ID_FILTER,               pixelFilter);
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
+    menuView->Check(ID_LEVEL_AUTO,           autoLevels);
     menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
     menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
     menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
@@ -263,17 +277,10 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuBar->Append(menuView,   wxT("&View"));
     menuBar->Append(menuHelp,   wxT("&Help"));
     SetMenuBar(menuBar);
-    snapCount   = 0;
-    pixelFilter = false;
-    ccdFrame    = NULL;
-    camCount    = sxProbe(camHandles, camParams, camUSBType);
-    InitLevels();
-    ConnectCamera(initialCamIndex);
 }
 void FocusFrame::InitLevels()
 {
     focusExposure = MIN_EXPOSURE + INC_EXPOSURE;
-    pixelGamma    = 1.5;
     pixelMin      = MAX_WHITE;
     pixelMax      = MIN_BLACK;
     pixelBlack    = MIN_BLACK;
@@ -653,6 +660,10 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 		sxRelease(camHandles, camCount);
 		camCount = 0;
 	}
+    wxConfig config(wxT("sxFocus"), wxT("sxToys"));
+    config.Write(wxT("RedFilter"),  pixelFilter);
+    config.Write(wxT("AutoLevels"), autoLevels);
+    config.Write(wxT("Gamma"),      pixelGamma);
     Destroy();
 }
 void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))
