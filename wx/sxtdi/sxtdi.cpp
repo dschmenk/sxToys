@@ -128,9 +128,9 @@ protected:
     wxString       tdiFileName;
     bool           tdiFileSaved;
     int            tdiState;
-    unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
+    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
     unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY, ccdPixelCount;
-    double         ccdPixelWidth, ccdPixelHeight;
+    float          ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     uint16_t      *tdiFrame;
     float          pixelGamma;
@@ -230,9 +230,6 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
     wxString *modelString = new wxString(' ', 10);
     if (parser.Found(wxT("m"), modelString))
     {
-        //
-        // Validate ccdModel
-        //
         if (toupper(modelString->GetChar(1)) == 'X')
         {
             switch (toupper(modelString->GetChar(0)))
@@ -311,9 +308,9 @@ bool ScanApp::OnInit()
     {
         ScanFrame *frame = new ScanFrame();
         if (autonomous && ccdModel)
-            //
-            // In autonomous mode, skip Show() to reduce processing overhead of image display
-            //
+            /*
+             * In autonomous mode, skip Show() to reduce processing overhead of image display
+             */
             frame->StartTDI();
         else
             frame->Show(true);
@@ -532,9 +529,9 @@ void ScanFrame::DoAlign()
     int yRadius = TRACK_STAR_RADIUS / ccdPixelHeight * 2; // Take into account star streaking for long focal lengths
     if (numFrames == 0)
     {
-        //
-        // If first frame, identify best candidate for measuring scan rate
-        //
+        /*
+         * If first frame, identify best candidate for measuring scan rate
+         */
         trackStarX = ccdFrameWidth / 4;  // Start search in middle quarter of image for best centroid
         trackStarY = ccdFrameHeight - ccdFrameHeight / 4 - yRadius / 4; // Start search in left half of image for best centroid
         if (findBestCentroid(ccdFrameWidth / 2,
@@ -556,9 +553,9 @@ void ScanFrame::DoAlign()
     }
     else
     {
-        //
-        // Track star for rate measurement
-        //
+        /*
+         * Track star for rate measurement
+         */
         if ((trackStarY > tdiScanRate)
           && findBestCentroid(ccdFrameWidth / 2,
                               ccdFrameHeight,
@@ -579,9 +576,9 @@ void ScanFrame::DoAlign()
             }
             else
             {
-                //
-                // Restart search for best centroid
-                //
+                /*
+                 * Restart search for best centroid
+                 */
                 tdiExposure = 0.0;
                 tdiScanRate = 0.0;
                 numFrames = 0;
@@ -627,9 +624,9 @@ void ScanFrame::DoAlign()
         dc.DrawBitmap(bitmap, 0, 0);
         if (numFrames)
         {
-            //
-            // Draw ellipse around best star depicting FWHM
-            //
+            /*
+             * Draw ellipse around best star depicting FWHM
+             */
             float xScale = (float)winHeight / (float)(ccdFrameWidth / 2);
             float yScale = (float)winWidth  / (float)ccdFrameHeight;
             xRadius *= xScale;
@@ -710,10 +707,10 @@ wxThread::ExitCode ScanThread::Entry()
 }
 void ScanFrame::DoTDI()
 {
-    //
-    // Playing fast and loose with tdiRow and tdiLength. Grab a copy in case
-    // it gets updated in ScanThread causing fault in final row
-    //
+    /*
+     * Playing fast and loose with tdiRow and tdiLength. Grab a copy in case
+     * it gets updated in ScanThread causing fault in final row
+     */
     int currentRow = tdiRow;
     if (currentRow < tdiLength)
     {
@@ -747,9 +744,9 @@ void ScanFrame::DoTDI()
     }
     else
     {
-        //
-        // All done.
-        //
+        /*
+         * All done.
+         */
         tdiTimer.Stop();
         tdiState = STATE_IDLE;
         SetTitle(wxT("SX TDI"));
@@ -762,9 +759,9 @@ void ScanFrame::DoTDI()
             wxMessageBox("Camera Error", "Scan Error", wxOK | wxICON_INFORMATION);
         if (tdiRow < ccdBinHeight)
         {
-            //
-            // Don't bother if less than a full frame Image
-            //
+            /*
+             * Don't bother if less than a full frame image.
+             */
             free(tdiFrame);
             tdiFrame     = NULL;
             tdiFileSaved = true;

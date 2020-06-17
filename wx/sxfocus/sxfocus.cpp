@@ -90,8 +90,8 @@ private:
 	HANDLE         camHandles[SXCCD_MAX_CAMS];
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
-    unsigned int   ccdFrameX, ccdFrameY, ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    double         ccdPixelWidth, ccdPixelHeight;
+    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
+    float          ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     float          xBestCentroid, yBestCentroid;
     int            xOffset, yOffset;
@@ -182,10 +182,6 @@ bool FocusApp::OnCmdLineParsed(wxCmdLineParser &parser)
     wxString *modelString = new wxString(' ', 10);
     if (parser.Found(wxT("m"), modelString))
     {
-        //wxPrintf("Overriding SX camera model with: %s\n", modelString->c_str());
-        //
-        // Validate ccdModel
-        //
         if (toupper(modelString->GetChar(1)) == 'X')
         {
             switch (toupper(modelString->GetChar(0)))
@@ -478,30 +474,22 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     uint16_t      *m16 = ccdFrame;
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
+    for (int l = 0; l < zoomHeight*zoomWidth; l++)
+    {
+        if (*m16 < pixelMin) pixelMin = *m16;
+        if (*m16 > pixelMax) pixelMax = *m16;
+        rgb[0] = redLUT[LUT_INDEX(*m16)];
+        rgb[1] =
+        rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
+        rgb   += 3;
+        m16++;
+    }
     if (autoLevels)
     {
-        for (int l = 0; l < zoomHeight*zoomWidth; l++)
-        {
-            if (*m16 < pixelMin) pixelMin = *m16;
-            if (*m16 > pixelMax) pixelMax = *m16;
-            m16++;
-        }
-        m16        = ccdFrame; // Reset CCD image pointer
         pixelBlack = pixelMin;
         pixelWhite = pixelMax;
         calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
     }
-    for (int y = 0; y < zoomHeight; y++)
-        for (int x = 0; x < zoomWidth; x++)
-        {
-            if (*m16 < pixelMin) pixelMin = *m16;
-            if (*m16 > pixelMax) pixelMax = *m16;
-            rgb[0] = redLUT[LUT_INDEX(*m16)];
-            rgb[1] =
-            rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
-            rgb   += 3;
-            m16++;
-        }
     GetClientSize(&focusWinWidth, &focusWinHeight);
     if (focusWinWidth > 0 && focusWinHeight > 0)
     {
@@ -524,9 +512,9 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
                              1.0))
         {
             CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
-            //
-            // Draw ellipse around best star depicting FWHM
-            //
+            /*
+             * Draw ellipse around best star depicting FWHM
+             */
             float xScale = (float)focusWinWidth  / (float)zoomWidth;
             float yScale = (float)focusWinHeight / (float)zoomHeight;
             xRadius *= 2 * xScale;
