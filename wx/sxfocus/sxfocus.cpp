@@ -233,6 +233,7 @@ bool FocusApp::OnInit()
 }
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
+    CreateStatusBar(4);
     snapCount   = 0;
     ccdFrame    = NULL;
     autoLevels  = false;
@@ -245,7 +246,6 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     InitLevels();
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
-    CreateStatusBar(4);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER

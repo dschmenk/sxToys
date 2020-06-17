@@ -117,9 +117,10 @@ private:
     void InitLevels();
     bool ConnectCamera(int index);
     void CenterCentroid(float x, float y, int width, int height);
+    void UpdateView(int view);
+    void SnapStatus();
     void OnBackground(wxEraseEvent& event);
     void OnPaint(wxPaintEvent& event);
-    void SnapStatus();
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
     bool AreSaved();
@@ -132,7 +133,6 @@ private:
     void OnFilter(wxCommandEvent& event);
     void OnAutoLevels(wxCommandEvent& event);
     void OnGamma(wxCommandEvent& event);
-    void UpdateView(int view);
     void OnStart(wxCommandEvent& event);
     void OnForward(wxCommandEvent& event);
     void OnBackward(wxCommandEvent& event);
@@ -265,6 +265,7 @@ bool SnapApp::OnInit()
 }
 SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
 {
+    CreateStatusBar(3);
     memset(snapShots, 0, sizeof(uint16_t) * MAX_SNAPSHOTS);
     snapFilePath = wxGetCwd();
     snapBaseName = initialBaseName;
@@ -283,7 +284,6 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     InitLevels();
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
-    CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT,    wxT("&Connect Camera..."));
 #ifndef _MSC_VER

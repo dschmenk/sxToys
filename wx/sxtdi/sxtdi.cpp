@@ -127,7 +127,6 @@ protected:
     wxString       tdiFilePath;
     wxString       tdiFileName;
     bool           tdiFileSaved;
-    int            tdiState;
     unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth, ccdPixelCount;
     unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY;
     float          ccdPixelWidth, ccdPixelHeight;
@@ -135,18 +134,19 @@ protected:
     uint16_t      *tdiFrame;
     float          pixelGamma;
     bool           pixelFilter;
-    volatile int   tdiLength, tdiRow;
     int            tdiMinutes, numFrames;
     float          tdiScanRate, tdiExposure, binExposure;
+    volatile int   tdiState, tdiLength, tdiRow;
 private:
     float          trackStarInitialX, trackStarInitialY, trackStarX, trackStarY;
     wxStopWatch   *trackWatch;
     wxImage       *scanImage;
     wxTimer        tdiTimer;
     bool FitsWrite(wxString& fileName);
-    void DoAlign();
-    void DoTDI();
+    void UpdateAlign();
+    void UpdateTDI();
     void StartTDI();
+    wxThread::ExitCode StopTDI();
     void GetDuration();
     bool ConnectCamera(int index);
     void OnBackground(wxEraseEvent& event);
@@ -326,6 +326,7 @@ bool ScanApp::OnInit()
 }
 ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, ID_TIMER)
 {
+    CreateStatusBar(3);
     tdiFilePath = wxGetCwd();
     tdiFileName = initialFileName;
     tdiFrame    = NULL;
@@ -344,7 +345,6 @@ ScanFrame::ScanFrame() : wxFrame(NULL, wxID_ANY, wxT("SX TDI")), tdiTimer(this, 
     config.Read(wxT("Gamma"),      &pixelGamma);
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
-    CreateStatusBar(3);
     wxMenu *menuCamera = new wxMenu;
     menuCamera->Append(ID_CONNECT, wxT("&Connnect Camera..."));
 #ifndef _MSC_VER
@@ -512,7 +512,7 @@ void ScanFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 	}
 #endif
 }
-void ScanFrame::DoAlign()
+void ScanFrame::UpdateAlign()
 {
     static long trackInitialTime;
     long trackTime = trackWatch->Time();
@@ -716,7 +716,64 @@ wxThread::ExitCode ScanThread::Entry()
     scan->tdiLength = scan->tdiRow; // Signal complete if errored out, nop if ok
     return scanErr;
 }
-void ScanFrame::DoTDI()
+void ScanFrame::StartTDI()
+{
+    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
+    ccdBinHeight = ccdFrameHeight / ccdBinY;
+    binExposure  = tdiExposure * ccdBinY;
+    tdiLength    = tdiMinutes * 60000 / binExposure;
+    if (tdiLength < ccdBinHeight)
+        tdiLength = ccdBinHeight;
+    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
+    tdiFileSaved = false;
+    tdiRow       = 0;
+    tdiState     = STATE_SCANNING;
+    ENABLE_HIGH_RES_TIMER();
+    tdiThread = new ScanThread(this);
+    tdiThread->Run();
+    wxMilliSleep(100); // Give it a moment
+}
+wxThread::ExitCode ScanFrame::StopTDI()
+{
+    tdiState = STATE_IDLE;
+    wxThread::ExitCode scanErr = tdiThread->Wait();
+    delete tdiThread;
+    DISABLE_HIGH_RES_TIMER();
+    if (tdiRow < ccdBinHeight)
+    {
+        /*
+         * Don't bother if less than a full frame image.
+         */
+        free(tdiFrame);
+        tdiFrame     = NULL;
+        tdiFileSaved = true;
+    }
+    return scanErr;
+}
+void ScanFrame::AutoStart(wxString& fileName)
+{
+    wxMessageOutputStderr progress;
+    StartTDI();
+    /*
+     * Wait for scan to complete
+     */
+    while (tdiRow < tdiLength)
+    {
+        progress.Printf(wxT("%02ld%%"), (long)tdiRow*100/tdiLength);
+        wxSleep(60);
+    }
+    /*
+     * All done.
+     */
+    wxThread::ExitCode scanErr = StopTDI();
+    if (scanErr == SCAN_ERR_TIME)
+        progress.Printf("Miniumum Timing Error");
+    if (scanErr == SCAN_ERR_CAMERA)
+        progress.Printf("Camera Error");
+    tdiFileSaved = FitsWrite(fileName);
+}
+void ScanFrame::UpdateTDI()
 {
     /*
      * Playing fast and loose with tdiRow and tdiLength. Grab a copy in case
@@ -768,32 +825,20 @@ void ScanFrame::DoTDI()
          * All done.
          */
         tdiTimer.Stop();
-        tdiState = STATE_IDLE;
-        SetTitle(wxT("SX TDI"));
-        wxThread::ExitCode scanErr = tdiThread->Wait();
-        delete tdiThread;
-        DISABLE_HIGH_RES_TIMER();
+        wxThread::ExitCode scanErr = StopTDI();
         if (scanErr == SCAN_ERR_TIME)
             wxMessageBox("Miniumum Timing Error", "Scan Error", wxOK | wxICON_INFORMATION);
         if (scanErr == SCAN_ERR_CAMERA)
             wxMessageBox("Camera Error", "Scan Error", wxOK | wxICON_INFORMATION);
-        if (tdiRow < ccdBinHeight)
-        {
-            /*
-             * Don't bother if less than a full frame image.
-             */
-            free(tdiFrame);
-            tdiFrame     = NULL;
-            tdiFileSaved = true;
-        }
+        SetTitle(wxT("SX TDI"));
     }
 }
 void ScanFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_SCANNING)
-        DoTDI();
+        UpdateTDI();
     else
-        DoAlign();
+        UpdateAlign();
 }
 void ScanFrame::GetDuration()
 {
@@ -876,57 +921,6 @@ void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
         }
     }
 }
-void ScanFrame::StartTDI()
-{
-    if (tdiExposure == 0.0)
-    {
-        wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
-        return;
-    }
-    if (tdiMinutes == 0)
-    {
-        GetDuration();
-        if (tdiMinutes == 0)
-            return;
-    }
-    if (tdiFrame)
-    {
-        if (!tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-            return;
-        free(tdiFrame);
-    }
-    if (scanImage)
-        delete scanImage;
-    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
-    ccdBinHeight = ccdFrameHeight / ccdBinY;
-    scanImage    = new wxImage(ccdBinHeight * 2, ccdBinWidth);
-    binExposure  = tdiExposure * ccdBinY;
-    tdiLength    = tdiMinutes * 60000 / binExposure;
-    if (tdiLength < ccdBinHeight)
-        tdiLength = ccdBinHeight;
-    tdiFrame  = (uint16_t *)malloc(sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    memset(tdiFrame, 0, sizeof(uint16_t) * tdiLength * ccdBinWidth);
-    tdiFileSaved = false;
-    tdiRow       = 0;
-    tdiState     = STATE_SCANNING;
-    ENABLE_HIGH_RES_TIMER();
-    tdiThread = new ScanThread(this);
-    tdiThread->Run();
-    wxMilliSleep(100); // Give it a moment
-    tdiTimer.Start(max(binExposure, MIN_SCREEN_UPDATE)); // Bound screen update rate
-}
-void ScanFrame::AutoStart(wxString& fileName)
-{
-    wxMessageOutputStderr progress;
-    StartTDI();
-    while (tdiState == STATE_SCANNING)
-    {
-        progress.Printf(wxT("%02ld%%"), (long)tdiRow*100/tdiLength);
-        wxSleep(60);
-    }
-    if (tdiFrame)
-        tdiFileSaved = FitsWrite(fileName);
-}
 void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
 {
     if (tdiState == STATE_ALIGNING)
@@ -988,8 +982,29 @@ void ScanFrame::OnScan(wxCommandEvent& WXUNUSED(event))
     }
     if (tdiState == STATE_IDLE && ccdModel)
     {
-        StartTDI();
+        if (tdiExposure == 0.0)
+        {
+            wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
+            return;
+        }
+        if (tdiMinutes == 0)
+        {
+            GetDuration();
+            if (tdiMinutes == 0)
+                return;
+        }
+        if (tdiFrame)
+        {
+            if (!tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+                return;
+            free(tdiFrame);
+        }
         SetTitle(wxT("SX TDI [Scanning]"));
+        StartTDI();
+        if (scanImage)
+            delete scanImage;
+        scanImage = new wxImage(ccdBinHeight * 2, ccdBinWidth);
+        tdiTimer.Start(max(binExposure, MIN_SCREEN_UPDATE)); // Bound screen update rate
     }
     else
         wxBell();
