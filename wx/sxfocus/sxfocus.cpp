@@ -90,7 +90,7 @@ private:
 	HANDLE         camHandles[SXCCD_MAX_CAMS];
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
-    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
+    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth, ccdPixelCount;
     float          ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     float          xBestCentroid, yBestCentroid;
@@ -294,12 +294,14 @@ bool FocusFrame::ConnectCamera(int index)
             index = camCount - 1;
         camSelect      = index;
         ccdModel       = sxGetCameraModel(camHandles[camSelect]);
+        ccdFrameDepth  = camParams[camSelect].bits_per_pixel;
         ccdFrameWidth  = camParams[camSelect].width;
         ccdFrameHeight = camParams[camSelect].height;
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
+        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1, 1);
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFrameWidth * ccdFrameHeight);
+        ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
         focusTimer.StartOnce(focusExposure);
         sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
@@ -523,6 +525,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
             dc.DrawEllipse((xBestCentroid + 0.5) * xScale - xRadius, (yBestCentroid + 0.5) * yScale - yRadius, xRadius * 2, yRadius * 2);
         }
+        Refresh();
     }
     char minmax[20];
     sprintf(minmax, "Min: %d", pixelMin);

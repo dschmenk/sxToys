@@ -117,7 +117,7 @@ class ScanFrame : public wxFrame
 {
 public:
     ScanFrame();
-    void StartTDI();
+    void AutoStart(wxString& fileName);
 protected:
     friend class ScanThread;
     ScanThread    *tdiThread;
@@ -128,8 +128,8 @@ protected:
     wxString       tdiFileName;
     bool           tdiFileSaved;
     int            tdiState;
-    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
-    unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY, ccdPixelCount;
+    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth, ccdPixelCount;
+    unsigned int   ccdBinWidth, ccdBinHeight, ccdBinX, ccdBinY;
     float          ccdPixelWidth, ccdPixelHeight;
     uint16_t      *ccdFrame;
     uint16_t      *tdiFrame;
@@ -143,9 +143,10 @@ private:
     wxStopWatch   *trackWatch;
     wxImage       *scanImage;
     wxTimer        tdiTimer;
-    bool FitsWrite(char *filename);
+    bool FitsWrite(wxString& fileName);
     void DoAlign();
     void DoTDI();
+    void StartTDI();
     void GetDuration();
     bool ConnectCamera(int index);
     void OnBackground(wxEraseEvent& event);
@@ -301,6 +302,8 @@ bool ScanApp::OnInit()
 {
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Read(wxT("ScanRate"), &initialRate);
+    config.Read(wxT("BinX"),     &initialBinX);
+    config.Read(wxT("BinY"),     &initialBinY);
 #ifndef _MSC_VER
     config.Read(wxT("USB1Camera"), &camUSBType);
 #endif
@@ -308,10 +311,13 @@ bool ScanApp::OnInit()
     {
         ScanFrame *frame = new ScanFrame();
         if (autonomous && ccdModel)
+        {
             /*
              * In autonomous mode, skip Show() to reduce processing overhead of image display
              */
-            frame->StartTDI();
+            frame->AutoStart(initialFileName);
+            frame->Close(true);
+        }
         else
             frame->Show(true);
         return true;
@@ -400,11 +406,12 @@ bool ScanFrame::ConnectCamera(int index)
             index = camCount - 1;
         camSelect      = index;
         ccdModel       = sxGetCameraModel(camHandles[camSelect]);
+        ccdFrameDepth  = camParams[camSelect].bits_per_pixel;
         ccdFrameWidth  = camParams[camSelect].width;
         ccdFrameHeight = camParams[camSelect].height;
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
-        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth / 2, ccdFrameHeight, 1, 1);
+        ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth / 2, ccdFrameHeight, 1, 1); // Half width for alignment
         ccdFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
         sprintf(statusText, "Attached: %cX-%d[%d]", ccdModel & SXCCD_INTERLEAVE ? 'M' : 'H', ccdModel & 0x3F, camSelect);
     }
@@ -412,8 +419,8 @@ bool ScanFrame::ConnectCamera(int index)
     {
         camSelect       = -1;
         ccdModel        = 0;
-        ccdFrameWidth   = ccdFrameHeight = 512;
         ccdFrameDepth   = 16;
+        ccdFrameWidth   = ccdFrameHeight = 512;
         ccdPixelWidth   = ccdPixelHeight = 1;
         ccdPixelCount   = 0;
         ccdFrame        = NULL;
@@ -633,7 +640,7 @@ void ScanFrame::DoAlign()
             yRadius *= yScale;
             dc.SetPen(wxPen(*wxGREEN, 1, wxSOLID));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawEllipse(winWidth - 1 - (trackStarY + 0.5) * yScale - yRadius, (trackStarX + 0.5) * xScale - xRadius, yRadius * 2, xRadius * 2);
+            dc.DrawEllipse(winWidth - 1 - (trackStarY + 0.5) * yScale - yRadius, (trackStarX + 0.5) * xScale - xRadius, yRadius * 2 + 1, xRadius * 2 + 1);
         }
         if (tdiScanRate > 0.0)
         {
@@ -714,32 +721,41 @@ void ScanFrame::DoTDI()
     int currentRow = tdiRow;
     if (currentRow < tdiLength)
     {
-        int winWidth, winHeight;
-        GetClientSize(&winWidth, &winHeight);
-        if (winWidth > 0 && winHeight > 0)
+        /*
+         * Skip image display if not shown on screen. This is an expensive
+         * operation that can cause anomolies on slow computers. Minimize
+         * the window to avoid all this overhead.
+         */
+        if (IsShownOnScreen())
         {
-            int pixelMax       = MIN_PIX;
-            int pixelMin       = MAX_PIX;
-            unsigned char *rgb = scanImage->GetData();
-            uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight * 2) ? ccdBinHeight * 2 - 1 : currentRow)];
-            for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
+            int winWidth, winHeight;
+            GetClientSize(&winWidth, &winHeight);
+            if (winWidth > 0 && winHeight > 0)
             {
-                uint16_t *m16 = &pixels[y];
-                for (unsigned x = 0; x < ccdBinHeight * 2; x++)
+                int pixelMax       = MIN_PIX;
+                int pixelMin       = MAX_PIX;
+                unsigned char *rgb = scanImage->GetData();
+                uint16_t *pixels   = &tdiFrame[ccdBinWidth * ((currentRow < ccdBinHeight * 2) ? ccdBinHeight * 2 - 1 : currentRow)];
+                for (unsigned y = 0; y < ccdBinWidth; y++) // Rotate image 90 degrees counterclockwise as it gets copied
                 {
-                    if (*m16 < pixelMin && *m16 > 0) pixelMin = *m16;
-                    if (*m16 > pixelMax) pixelMax = *m16;
-                    rgb[0] = redLUT[LUT_INDEX(*m16)];
-                    rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
-                    rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
-                    rgb   += 3;
-                    m16   -= ccdBinWidth;
+                    uint16_t *m16 = &pixels[y];
+                    for (unsigned x = 0; x < ccdBinHeight * 2; x++)
+                    {
+                        if (*m16 < pixelMin && *m16 > 0) pixelMin = *m16;
+                        if (*m16 > pixelMax) pixelMax = *m16;
+                        rgb[0] = redLUT[LUT_INDEX(*m16)];
+                        rgb[1] = blugrnLUT[LUT_INDEX(*m16)];
+                        rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
+                        rgb   += 3;
+                        m16   -= ccdBinWidth;
+                    }
                 }
+                calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter); // Behind a row in ramp updates. Oh well
+                wxClientDC dc(this);
+                wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+                dc.DrawBitmap(bitmap, 0, 0);
+                Refresh();
             }
-            calcRamp(pixelMin, pixelMax, pixelGamma, pixelFilter); // Behind a row in ramp updates. Oh well
-            wxClientDC dc(this);
-            wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
-            dc.DrawBitmap(bitmap, 0, 0);
         }
     }
     else
@@ -766,16 +782,6 @@ void ScanFrame::DoTDI()
             tdiFrame     = NULL;
             tdiFileSaved = true;
         }
-        if (autonomous)
-        {
-            if (tdiFrame)
-            {
-                char filename[255];
-                strcpy(filename, tdiFileName.c_str());
-                tdiFileSaved = FitsWrite(filename);
-            }
-            Close(true);
-        }
     }
 }
 void ScanFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
@@ -791,7 +797,7 @@ void ScanFrame::GetDuration()
 							wxT(""),
 							wxT("Hours:"),
 							wxT("Scan Duration"),
-							6, 1, 12);
+							tdiMinutes / 60, 1, 12);
 	if (dlg.ShowModal() != wxID_OK)
 		return;
 	tdiMinutes = dlg.GetValue() * 60;
@@ -868,8 +874,6 @@ void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
 }
 void ScanFrame::StartTDI()
 {
-    if (tdiFrame != NULL && !tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
-        return;
     if (tdiExposure == 0.0)
     {
         wxMessageBox("Align & Measure Rate first", "Start TDI Error", wxOK | wxICON_INFORMATION);
@@ -880,6 +884,12 @@ void ScanFrame::StartTDI()
         GetDuration();
         if (tdiMinutes == 0)
             return;
+    }
+    if (tdiFrame)
+    {
+        if (!tdiFileSaved && wxMessageBox("Overwrite unsaved image?", "Scan Warning", wxYES_NO | wxICON_INFORMATION) == wxID_NO)
+            return;
+        free(tdiFrame);
     }
     if (scanImage)
         delete scanImage;
@@ -898,7 +908,20 @@ void ScanFrame::StartTDI()
     ENABLE_HIGH_RES_TIMER();
     tdiThread = new ScanThread(this);
     tdiThread->Run();
+    wxMilliSleep(100); // Give it a moment
     tdiTimer.Start(max(binExposure, MIN_SCREEN_UPDATE)); // Bound screen update rate
+}
+void ScanFrame::AutoStart(wxString& fileName)
+{
+    wxMessageOutputStderr progress;
+    StartTDI();
+    while (tdiState == STATE_SCANNING)
+    {
+        progress.Printf(wxT("%02ld%%"), (long)tdiRow*100/tdiLength);
+        wxSleep(60);
+    }
+    if (tdiFrame)
+        tdiFileSaved = FitsWrite(fileName);
 }
 void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
 {
@@ -936,6 +959,7 @@ void ScanFrame::OnAlign(wxCommandEvent& WXUNUSED(event))
             wxClientDC dc(this);
             wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
             dc.DrawBitmap(bitmap, 0, 0);
+            Refresh();
         }
         tdiScanRate = 0.0;
         numFrames   = 0;
@@ -1010,10 +1034,12 @@ void ScanFrame::OnNew(wxCommandEvent& WXUNUSED(event))
         tdiFrame = NULL;
     }
 }
-bool ScanFrame::FitsWrite(char *filename)
+bool ScanFrame::FitsWrite(wxString& fileName)
 {
-    if (fits_open(filename))                                                                             return fits_cleanup();
-    if (fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, ccdBinHeight))              return fits_cleanup();
+    char fits_file[255];
+    strcpy(fits_file, fileName.c_str());
+    if (fits_open(fits_file))                                                                            return fits_cleanup();
+    if (fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, tdiLength - ccdBinHeight))  return fits_cleanup();
     if (fits_write_key_int("EXPOSURE", (tdiLength - ccdBinHeight) * tdiExposure, "Total Exposure Time")) return fits_cleanup();
     if (fits_write_key_string("CREATOR", "sxTDI", "Imaging Application"))                                return fits_cleanup();
     if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device"))                    return fits_cleanup();
@@ -1022,7 +1048,6 @@ bool ScanFrame::FitsWrite(char *filename)
 }
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
-    char filename[255];
     if (tdiState == STATE_IDLE)
     {
         wxFileDialog dlg(this, wxT("Save Image"), tdiFilePath, tdiFileName, wxT("*.fits"/*"FITS file (*.fits)"*/), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
@@ -1032,8 +1057,7 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
             {
                 tdiFilePath  = dlg.GetPath();
                 tdiFileName  = dlg.GetFilename();
-                strcpy(filename, tdiFilePath.c_str());
-                tdiFileSaved = FitsWrite(filename);
+                tdiFileSaved = FitsWrite(tdiFilePath);
             }
         }
         else
@@ -1093,6 +1117,8 @@ void ScanFrame::OnClose(wxCloseEvent& event)
 	}
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Write(wxT("ScanRate"), tdiScanRate);
+    config.Write(wxT("BinX"), ccdBinX);
+    config.Write(wxT("BinY"), ccdBinY);
     Destroy();
 }
 void ScanFrame::OnExit(wxCommandEvent& WXUNUSED(event))
