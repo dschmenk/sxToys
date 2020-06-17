@@ -33,6 +33,10 @@ Some of the benefits of Time Delay Integration:
 
     4. Easy to automate
 
+## [sxSnapShot](https://github.com/dschmenk/sxToys/tree/master/wx/sxsnap): Quick and Dirty Snap Shots
+
+No muss, no fuss. Just take up to 100 snapshots in a burst. Review the images and delete what you don't want before saving some or all. Easily automated.
+
 ## [Build Instructions](https://github.com/dschmenk/sxToys/tree/master/wx)
 
 [wxWidgets](https://www.wxwidgets.org) based programs for Windows, Mac OS and Linux.
