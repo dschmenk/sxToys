@@ -307,8 +307,8 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     menuView->AppendCheckItem(ID_FILTER,     wxT("Red Filter\tR"));
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
     menuView->Append(ID_GAMMA,               wxT("&Gamma..."));
-    menuView->Append(ID_FORWARD,             wxT("&Next Image\tRIGHT"));
-    menuView->Append(ID_BACKWARD,            wxT("&Previous Image\tLEFT"));
+    menuView->Append(ID_FORWARD,             wxT("&Next Image\tF"));
+    menuView->Append(ID_BACKWARD,            wxT("&Previous Image\tB"));
     wxMenu *menuImage = new wxMenu;
     menuImage->Append(ID_START,    wxT("Start...\tSPACE"));
     menuCamera->AppendSeparator();
@@ -328,6 +328,7 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     snapFilePath = wxGetCwd();
     snapBaseName = initialBaseName;
     snapCount    = initialCount;
+    autoLevels   = false;
     pixelFilter  = false;
     pixelGamma   = 1.5;
     snapImage    = NULL;
@@ -535,6 +536,11 @@ void SnapFrame::OnDelete(wxCommandEvent& event)
     snapMax--;
     snapShots[snapMax] = NULL;
     snapSaved[snapMax] = true;
+    if (snapMax == 0 && snapImage)
+    {
+        delete snapImage;
+        snapImage = NULL;
+    }
     UpdateView(snapView);
     SnapStatus();
 }
@@ -596,13 +602,17 @@ void SnapFrame::OnSaveAll(wxCommandEvent& event)
 }
 void SnapFrame::UpdateView(int view)
 {
+    int l;
     if (view >= snapMax)
         view = snapMax - 1;
     if (view < 0)
         view = 0;
     snapView = view;
     if (!snapImage)
+    {
+        Refresh();
         return;
+    }
     /*
      * Convert 16 bit samples to 24 BPP image
      */
@@ -610,21 +620,26 @@ void SnapFrame::UpdateView(int view)
     uint16_t      *m16 = snapShots[snapView];
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
-    for (int l = 0; l < ccdBinWidth * ccdBinHeight; l++)
+    if (autoLevels)
     {
-        if (*m16 < pixelMin) pixelMin = *m16;
-        if (*m16 > pixelMax) pixelMax = *m16;
+        for (l = 0; l < ccdBinWidth * ccdBinHeight; l++)
+        {
+            if (*m16 < pixelMin) pixelMin = *m16;
+            if (*m16 > pixelMax) pixelMax = *m16;
+            m16++;
+        }
+        m16        = snapShots[snapView];
+        pixelBlack = pixelMin;
+        pixelWhite = pixelMax;
+        calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
+    }
+    for (l = 0; l < ccdBinWidth * ccdBinHeight; l++)
+    {
         rgb[0] = redLUT[LUT_INDEX(*m16)];
         rgb[1] =
         rgb[2] = blugrnLUT[LUT_INDEX(*m16)];
         rgb   += 3;
         m16++;
-    }
-    if (autoLevels)
-    {
-        pixelBlack = pixelMin;
-        pixelWhite = pixelMax;
-        calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
     }
     int winWidth, winHeight;
     GetClientSize(&winWidth, &winHeight);
@@ -643,7 +658,12 @@ void SnapFrame::OnFilter(wxCommandEvent& event)
 }
 void SnapFrame::OnAutoLevels(wxCommandEvent& event)
 {
-    autoLevels = event.IsChecked();
+    if (!(autoLevels = event.IsChecked()))
+    {
+        pixelBlack = MIN_BLACK;
+        pixelWhite = MAX_WHITE;
+        calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
+    }
     UpdateView(snapView);
 }
 void SnapFrame::OnGamma(wxCommandEvent& WXUNUSED(event))
@@ -680,44 +700,71 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
             wxCommandEvent eventSaveAll;
             OnSaveAll(eventSaveAll);
         }
-    FreeShots();
-    ccdBinWidth  = ccdFrameWidth  / ccdBinX;
-    ccdBinHeight = ccdFrameHeight / ccdBinY;
-    snapImage    = new wxImage(ccdBinWidth, ccdBinHeight);
-    int pixCount = ccdBinWidth * ccdBinHeight;
-    long timeDelta, timeElapsed, timeTotal = snapCount * (snapDelay + snapExposure) - snapDelay;
-    progress = wxString::Format(wxT("Integrating Image 0 of %d..."), snapCount);
-    wxProgressDialog dlg(wxT("SnapShot Progress"),
-                         progress,
-                         timeTotal,
-                         this,
-                         wxPD_CAN_ABORT
-                      // | wxPD_APP_MODAL
-                       | wxPD_ELAPSED_TIME
-                       | wxPD_REMAINING_TIME);
-    for (i = 0; i < snapMax; i++)
+    if (ccdModel)
     {
-        if (snapShots[i])
-            free(snapShots[i]);
-        snapShots[i]  = NULL;
-        snapSaved[i] = true;
-    }
-    timeElapsed = 0;
-    dlg.Update(0);
-    ENABLE_HIGH_RES_TIMER();
-    for (i = 0; i < snapCount; i++)
-    {
-        wxStopWatch watch;
-        /*
-         * Init frame.
-         */
-        snapShots[i] = (uint16_t *)malloc(sizeof(uint16_t) * pixCount);
-        if (snapDelay && i)
+        FreeShots();
+        ccdBinWidth  = ccdFrameWidth  / ccdBinX;
+        ccdBinHeight = ccdFrameHeight / ccdBinY;
+        snapImage    = new wxImage(ccdBinWidth, ccdBinHeight);
+        int pixCount = ccdBinWidth * ccdBinHeight;
+        long timeDelta, timeElapsed, timeTotal = snapCount * (snapDelay + snapExposure) - snapDelay;
+        progress = wxString::Format(wxT("Integrating Image 0 of %d..."), snapCount);
+        wxProgressDialog dlg(wxT("SnapShot Progress"),
+                             progress,
+                             timeTotal,
+                             this,
+                             wxPD_CAN_ABORT
+                          // | wxPD_APP_MODAL
+                           | wxPD_ELAPSED_TIME
+                           | wxPD_REMAINING_TIME);
+        for (i = 0; i < snapMax; i++)
         {
-            watch.Start();
-            while ((timeDelta = snapDelay - watch.Time()) > 1000)
+            if (snapShots[i])
+                free(snapShots[i]);
+            snapShots[i]  = NULL;
+            snapSaved[i] = true;
+        }
+        timeElapsed = 0;
+        dlg.Update(0);
+        ENABLE_HIGH_RES_TIMER();
+        for (i = 0; i < snapCount; i++)
+        {
+            wxStopWatch watch;
+            /*
+             * Init frame.
+             */
+            snapShots[i] = (uint16_t *)malloc(sizeof(uint16_t) * pixCount);
+            if (snapDelay && i)
             {
+                watch.Start();
+                while ((timeDelta = snapDelay - watch.Time()) > 1000)
+                {
+                    wxMilliSleep(1000);
+                    timeElapsed += 1000;
+                    if (!dlg.Update(timeElapsed))
+                        goto cancelled;
+                }
+                if (timeDelta > 0)
+                {
+                    wxMilliSleep(timeDelta);
+                    timeElapsed += timeDelta;
+                }
+            }
+            progress = wxString::Format(wxT("Integrating Image %d of %d..."), i + 1, snapCount);
+            if (!dlg.Update(timeElapsed, progress))
+                goto cancelled;
+            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
+            watch.Start();
+            while ((timeDelta = snapExposure - watch.Time()) > 1500)
+            {
+                /*
+                 * Clear registers every second.
+                 */
                 wxMilliSleep(1000);
+                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOCLEAR_FRAME, SXCCD_IMAGE_HEAD);
+                /*
+                 * Allow dialog feedback.
+                 */
                 timeElapsed += 1000;
                 if (!dlg.Update(timeElapsed))
                     goto cancelled;
@@ -727,57 +774,35 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 wxMilliSleep(timeDelta);
                 timeElapsed += timeDelta;
             }
-        }
-        progress = wxString::Format(wxT("Integrating Image %d of %d..."), i + 1, snapCount);
-        if (!dlg.Update(timeElapsed, progress))
-            goto cancelled;
-        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
-        watch.Start();
-        while ((timeDelta = snapExposure - watch.Time()) > 1500)
-        {
-            /*
-             * Clear registers every second.
-             */
-            wxMilliSleep(1000);
-            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOCLEAR_FRAME, SXCCD_IMAGE_HEAD);
-            /*
-             * Allow dialog feedback.
-             */
-            timeElapsed += 1000;
+            sxLatchImage(camHandles[camSelect], // cam handle
+                         SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                         SXCCD_IMAGE_HEAD, // main ccd
+                         0, // xoffset
+                         0, // yoffset
+                         ccdFrameWidth, // width
+                         ccdFrameHeight, // height
+                         ccdBinX, // xbin
+                         ccdBinY); // ybin
+            if (!sxReadImage(camHandles[camSelect], // cam handle
+                             snapShots[i], //pixbuf
+                             pixCount)) // pix count
+            {
+                wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
+                goto cancelled;
+            }
+            snapMax = i + 1;
+            UpdateView(i);
+            SnapStatus();
+            snapSaved[i] = false;
             if (!dlg.Update(timeElapsed))
                 goto cancelled;
         }
-        if (timeDelta > 0)
-        {
-            wxMilliSleep(timeDelta);
-            timeElapsed += timeDelta;
-        }
-        sxLatchImage(camHandles[camSelect], // cam handle
-                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
-                     SXCCD_IMAGE_HEAD, // main ccd
-                     0, // xoffset
-                     0, // yoffset
-                     ccdFrameWidth, // width
-                     ccdFrameHeight, // height
-                     ccdBinX, // xbin
-                     ccdBinY); // ybin
-        if (!sxReadImage(camHandles[camSelect], // cam handle
-                         snapShots[i], //pixbuf
-                         pixCount)) // pix count
-        {
-            wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
-            goto cancelled;
-        }
-        snapMax = i + 1;
-        UpdateView(i);
-        SnapStatus();
-        snapSaved[i] = false;
-        if (!dlg.Update(timeElapsed))
-            goto cancelled;
-    }
 cancelled:
-    DISABLE_HIGH_RES_TIMER();
-    //dlg.Close();
+        DISABLE_HIGH_RES_TIMER();
+        //dlg.Close();
+    }
+    else
+        wxMessageBox("Camera Not Connected", "SX SnapShot", wxOK | wxICON_INFORMATION);
 }
 void SnapFrame::OnNumber(wxCommandEvent& WXUNUSED(event))
 {
