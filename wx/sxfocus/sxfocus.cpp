@@ -102,12 +102,15 @@ private:
     float          pixelGamma;
     bool           pixelFilter, autoLevels, snapped;
     int            snapCount;
+    wxImage       *focusImage;
     wxTimer        focusTimer;
     void InitLevels();
     bool ConnectCamera(int index);
     void CenterCentroid(float x, float y, int width, int height);
     void OnSnapImage(wxCommandEvent& event);
     void OnTimer(wxTimerEvent& event);
+    void OnBackground(wxEraseEvent& event);
+    void OnPaint(wxPaintEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
@@ -168,6 +171,8 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_EXPOSE_DEC,  FocusFrame::OnExposureDec)
     EVT_MENU(wxID_ABOUT,     FocusFrame::OnAbout)
     EVT_MENU(wxID_EXIT,      FocusFrame::OnExit)
+    EVT_ERASE_BACKGROUND(    FocusFrame::OnBackground)
+    EVT_PAINT(               FocusFrame::OnPaint)
     EVT_CLOSE(               FocusFrame::OnClose)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(FocusApp);
@@ -235,6 +240,7 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
 {
     CreateStatusBar(4);
     snapCount   = 0;
+    focusImage  = NULL;
     ccdFrame    = NULL;
     autoLevels  = false;
     pixelFilter = false;
@@ -287,6 +293,28 @@ void FocusFrame::InitLevels()
     pixelWhite    = MAX_WHITE;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
+void FocusFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
+{
+}
+void FocusFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
+{
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        wxClientDC dc(this);
+        if (focusImage)
+        {
+            wxBitmap bitmap(focusImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+            dc.DrawBitmap(bitmap, 0, 0);
+        }
+        else
+        {
+            dc.SetBrush(wxBrush(*wxWHITE));
+            dc.DrawRectangle(0, 0, winWidth, winHeight);
+        }
+    }
+}
 bool FocusFrame::ConnectCamera(int index)
 {
     char statusText[40];
@@ -295,6 +323,8 @@ bool FocusFrame::ConnectCamera(int index)
     InitLevels();
     if (ccdFrame)
         free(ccdFrame);
+    if (focusImage)
+        delete focusImage;
     if (camCount)
     {
         if (index >= camCount)
@@ -337,6 +367,7 @@ bool FocusFrame::ConnectCamera(int index)
     focusZoom  = -1;
     zoomWidth  = ccdFrameWidth  >> -focusZoom;
     zoomHeight = ccdFrameHeight >> -focusZoom;
+    focusImage = new wxImage(zoomWidth, zoomHeight);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
     return camSelect >= 0;
@@ -478,8 +509,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     /*
      * Convert 16 bit samples to 24 BPP image
      */
-    wxImage ccdImage(zoomWidth, zoomHeight);
-    unsigned char *rgb = ccdImage.GetData();
+    unsigned char *rgb = focusImage->GetData();
     uint16_t      *m16 = ccdFrame;
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
@@ -503,7 +533,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     if (focusWinWidth > 0 && focusWinHeight > 0)
     {
         wxClientDC dc(this);
-        wxBitmap bitmap(ccdImage.Scale(focusWinWidth, focusWinHeight, wxIMAGE_QUALITY_BILINEAR));
+        wxBitmap bitmap(focusImage->Scale(focusWinWidth, focusWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
         xBestCentroid  = zoomWidth  / 2;
         yBestCentroid  = zoomHeight / 2;
@@ -582,6 +612,9 @@ void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
             sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
         }
         SetStatusText(statusText, 1);
+        if (focusImage)
+            delete focusImage;
+        focusImage = new wxImage(zoomWidth, zoomHeight);
     }
 }
 void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
@@ -608,6 +641,9 @@ void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
             sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
         }
         SetStatusText(statusText, 1);
+        if (focusImage)
+            delete focusImage;
+        focusImage = new wxImage(zoomWidth, zoomHeight);
     }
 }
 void FocusFrame::OnContrastInc(wxCommandEvent& WXUNUSED(event))
@@ -655,6 +691,8 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
+    if (focusImage)
+        delete focusImage;
 	if (camCount)
 	{
 		sxRelease(camHandles, camCount);

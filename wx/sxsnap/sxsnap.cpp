@@ -106,13 +106,13 @@ private:
     wxString       snapFilePath;
     wxString       snapBaseName;
     int            snapExposure, snapCount, snapView, snapMax;
-    wxImage       *snapImage;
     uint16_t      *snapShots[MAX_SNAPSHOTS];
     bool           snapSaved[MAX_SNAPSHOTS];
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
     bool           pixelFilter, autoLevels;
+    wxImage       *snapImage;
     wxStopWatch   *snapWatch;
     void InitLevels();
     bool ConnectCamera(int index);
