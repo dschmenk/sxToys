@@ -815,7 +815,6 @@ void ScanFrame::UpdateTDI()
                 wxClientDC dc(this);
                 wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
                 dc.DrawBitmap(bitmap, 0, 0);
-                Refresh();
             }
         }
     }

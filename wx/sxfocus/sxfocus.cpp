@@ -562,7 +562,6 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
             dc.DrawEllipse((xBestCentroid + 0.5) * xScale - xRadius, (yBestCentroid + 0.5) * yScale - yRadius, xRadius * 2, yRadius * 2);
         }
-        Refresh();
     }
     char minmax[20];
     sprintf(minmax, "Min: %d", pixelMin);
