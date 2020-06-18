@@ -454,14 +454,19 @@ void FocusFrame::OnSnapImage(wxCommandEvent& WXUNUSED(event))
 {
     if (!snapped)
     {
-        char filename[30];
-        sprintf(filename, "sxfocus-%03d.fits", snapCount++);
-        if (fits_open(filename))                                                          {fits_cleanup(); return;}
-        if (fits_write_image(ccdFrame, zoomWidth, zoomHeight))                            {fits_cleanup(); return;}
-        if (fits_write_key_int("EXPOSURE", focusExposure, "Total Exposure Time"))         {fits_cleanup(); return;}
-        if (fits_write_key_string("CREATOR", "sxFocus", "Imaging Application"))           {fits_cleanup(); return;}
-        if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")) {fits_cleanup(); return;}
-        if (fits_close())                                                                 {fits_cleanup(); return;}
+        char fits_file[30];
+        sprintf(fits_file, "sxfocus-%03d.fits", snapCount++);
+        if (fits_open(fits_file)
+         || fits_write_image(ccdFrame, zoomWidth, zoomHeight)
+         || fits_write_key_int("EXPOSURE", focusExposure, "Total Exposure Time")
+         || fits_write_key_string("CREATOR", "sxFocus", "Imaging Application")
+         || fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")
+         || fits_close())
+        {
+            fits_cleanup();
+            wxMessageBox("FAILed writing image!", "Save Error", wxOK | wxICON_INFORMATION);
+            return;
+        }
         snapped = true;
         wxBell();
     }

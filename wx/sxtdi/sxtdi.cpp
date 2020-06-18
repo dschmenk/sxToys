@@ -117,7 +117,7 @@ class ScanFrame : public wxFrame
 {
 public:
     ScanFrame();
-    void AutoStart(wxString& fileName);
+    bool AutoStart(wxString& fileName);
 protected:
     friend class ScanThread;
     ScanThread    *tdiThread;
@@ -309,18 +309,19 @@ bool ScanApp::OnInit()
 #endif
     if (wxApp::OnInit())
     {
+        bool startApp = true;
         ScanFrame *frame = new ScanFrame();
         if (autonomous && ccdModel)
         {
             /*
              * In autonomous mode, skip Show() to reduce processing overhead of image display
              */
-            frame->AutoStart(initialFileName);
+            startApp = frame->AutoStart(initialFileName);
             frame->Close(true);
         }
         else
             frame->Show(true);
-        return true;
+        return startApp;
     }
     return false;
 }
@@ -751,7 +752,7 @@ wxThread::ExitCode ScanFrame::StopTDI()
     }
     return scanErr;
 }
-void ScanFrame::AutoStart(wxString& fileName)
+bool ScanFrame::AutoStart(wxString& fileName)
 {
     wxMessageOutputStderr progress;
     StartTDI();
@@ -768,10 +769,21 @@ void ScanFrame::AutoStart(wxString& fileName)
      */
     wxThread::ExitCode scanErr = StopTDI();
     if (scanErr == SCAN_ERR_TIME)
-        progress.Printf("Miniumum Timing Error");
+    {
+        progress.Printf("Miniumum Timing Error!");
+        return false;
+    }
     if (scanErr == SCAN_ERR_CAMERA)
-        progress.Printf("Camera Error");
-    tdiFileSaved = FitsWrite(fileName);
+    {
+        progress.Printf("Camera Error!");
+        return false;
+    }
+    if (!(tdiFileSaved = FitsWrite(fileName)))
+    {
+        progress.Printf("Writing FITS File Error!");
+        return false;
+    }
+    return true;
 }
 void ScanFrame::UpdateTDI()
 {
@@ -1056,13 +1068,17 @@ bool ScanFrame::FitsWrite(wxString& fileName)
 {
     char fits_file[255];
     strcpy(fits_file, fileName.c_str());
-    if (fits_open(fits_file))                                                                            return fits_cleanup();
-    if (fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, tdiLength - ccdBinHeight))  return fits_cleanup();
-    if (fits_write_key_int("EXPOSURE", (tdiLength - ccdBinHeight) * tdiExposure, "Total Exposure Time")) return fits_cleanup();
-    if (fits_write_key_string("CREATOR", "sxTDI", "Imaging Application"))                                return fits_cleanup();
-    if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device"))                    return fits_cleanup();
-    if (fits_close())                                                                                    return fits_cleanup();
-    return true;
+    if (fits_open(fits_file)
+     || fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, tdiLength - ccdBinHeight)
+     || fits_write_key_int("EXPOSURE", (tdiLength - ccdBinHeight) * tdiExposure, "Total Exposure Time")
+     || fits_write_key_string("CREATOR", "sxTDI", "Imaging Application")
+     || fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")
+     || fits_close())
+    {
+        fits_cleanup();
+        return false; // Writing FITS file failed
+    }
+    return true; // All good
 }
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
@@ -1073,9 +1089,10 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
         {
             if (dlg.ShowModal() == wxID_OK)
             {
-                tdiFilePath  = dlg.GetPath();
-                tdiFileName  = dlg.GetFilename();
-                tdiFileSaved = FitsWrite(tdiFilePath);
+                tdiFilePath = dlg.GetPath();
+                tdiFileName = dlg.GetFilename();
+                if (!(tdiFileSaved = FitsWrite(tdiFilePath)))
+                    wxMessageBox("FAILed writing image!", "Save Error", wxOK | wxICON_INFORMATION);
             }
         }
         else

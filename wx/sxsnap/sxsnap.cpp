@@ -96,7 +96,7 @@ class SnapFrame : public wxFrame
 {
 public:
     SnapFrame();
-    void AutoStart(wxString& baseName);
+    bool AutoStart(wxString& baseName);
 private:
 	HANDLE         camHandles[SXCCD_MAX_CAMS];
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
@@ -125,10 +125,10 @@ private:
     void OnOverride(wxCommandEvent& event);
     bool AreSaved();
     void FreeShots();
-    void SaveShots(wxString& baseName);
     void OnNew(wxCommandEvent& event);
     void OnDelete(wxCommandEvent& event);
     void OnSave(wxCommandEvent& event);
+    bool SaveShots(wxString& baseName);
     void OnSaveAll(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
     void OnAutoLevels(wxCommandEvent& event);
@@ -247,6 +247,7 @@ bool SnapApp::OnInit()
 #endif
     if (wxApp::OnInit())
     {
+        bool startApp = true;
         SnapFrame *frame = new SnapFrame();
         if (autonomous && ccdModel)
         {
@@ -254,12 +255,12 @@ bool SnapApp::OnInit()
              * In autonomous mode, skip Show() to reduce processing overhead
              * of image display and send dummy Start event.
              */
-            frame->AutoStart(initialBaseName);
+            startApp = frame->AutoStart(initialBaseName);
             frame->Close(true);
         }
         else
             frame->Show(true);
-        return true;
+        return startApp;
     }
     return false;
 }
@@ -488,26 +489,6 @@ void SnapFrame::FreeShots()
         snapImage = NULL;
     }
 }
-void SnapFrame::SaveShots(wxString& baseName)
-{
-    for (int i = 0; i < snapMax; i++)
-    {
-        char base[255];
-        strcpy(base, baseName.c_str());
-        if (!snapSaved[i])
-        {
-            char fileName[255];
-            sprintf(fileName, "%s-%02d.fits", base, i);
-            if (fits_open(fileName))                                                          {fits_cleanup(); return;}
-            if (fits_write_image(snapShots[i], ccdFrameWidth, ccdFrameHeight))                {fits_cleanup(); return;}
-            if (fits_write_key_int("EXPOSURE", snapExposure, "Total Exposure Time"))          {fits_cleanup(); return;}
-            if (fits_write_key_string("CREATOR", "sxSnapShot", "Imaging Application"))        {fits_cleanup(); return;}
-            if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")) {fits_cleanup(); return;}
-            if (fits_close())                                                                 {fits_cleanup(); return;}
-            snapSaved[i] = true;
-        }
-    }
-}
 void SnapFrame::OnNew(wxCommandEvent& event)
 {
     /*
@@ -550,25 +531,55 @@ void SnapFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
     if (snapShots[snapView] != NULL)
     {
-        char filename[255];
+        char fits_file[255];
         wxFileDialog dlg(this, wxT("Save Image"), snapFilePath, snapBaseName, wxT("*.fits"/*"FITS file (*.fits)"*/), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         if (dlg.ShowModal() == wxID_OK)
         {
             snapFilePath  = dlg.GetPath();
             snapBaseName  = dlg.GetFilename();
-            strcpy(filename, snapFilePath.c_str());
-            if (fits_open(filename))                                                          {fits_cleanup(); return;}
-            if (fits_write_image(snapShots[snapView], ccdFrameWidth, ccdFrameHeight))         {fits_cleanup(); return;}
-            if (fits_write_key_int("EXPOSURE", snapExposure, "Total Exposure Time"))          {fits_cleanup(); return;}
-            if (fits_write_key_string("CREATOR", "sxSnapShot", "Imaging Application"))        {fits_cleanup(); return;}
-            if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")) {fits_cleanup(); return;}
-            if (fits_close())                                                                 {fits_cleanup(); return;}
-            snapSaved[snapView] = true;
+            strcpy(fits_file, snapFilePath.c_str());
+            if (fits_open(fits_file)
+             || fits_write_image(snapShots[snapView], ccdFrameWidth, ccdFrameHeight)
+             || fits_write_key_int("EXPOSURE", snapExposure, "Total Exposure Time")
+             || fits_write_key_string("CREATOR", "sxSnapShot", "Imaging Application")
+             || fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")
+             || fits_close())
+            {
+                fits_cleanup();
+                wxMessageBox("FAILed writing image!", "Save Error", wxOK | wxICON_INFORMATION);
+            }
+            else
+                snapSaved[snapView] = true;
         }
     }
     else
         wxMessageBox("No image to save", "Save Error", wxOK | wxICON_INFORMATION);
     SnapStatus();
+}
+bool SnapFrame::SaveShots(wxString& baseName)
+{
+    for (int i = 0; i < snapMax; i++)
+    {
+        char base[255];
+        strcpy(base, baseName.c_str());
+        if (!snapSaved[i])
+        {
+            char fits_file[255];
+            sprintf(fits_file, "%s-%02d.fits", base, i);
+            if (fits_open(fits_file)
+             || fits_write_image(snapShots[i], ccdFrameWidth, ccdFrameHeight)
+             || fits_write_key_int("EXPOSURE", snapExposure, "Total Exposure Time")
+             || fits_write_key_string("CREATOR", "sxSnapShot", "Imaging Application")
+             || fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")
+             || fits_close())
+            {
+                fits_cleanup();
+                return false; // Writing FITS file failed
+            }
+            snapSaved[i] = true;
+        }
+    }
+    return true; // All good
 }
 void SnapFrame::OnSaveAll(wxCommandEvent& event)
 {
@@ -579,7 +590,8 @@ void SnapFrame::OnSaveAll(wxCommandEvent& event)
         {
             snapFilePath  = dlg.GetPath();
             snapBaseName  = dlg.GetFilename();
-            SaveShots(snapFilePath);
+            if (!SaveShots(snapFilePath))
+                wxMessageBox("FAILed writing images!", "Save All Error", wxOK | wxICON_INFORMATION);
         }
         SnapStatus();
     }
@@ -676,7 +688,7 @@ void SnapFrame::OnBackward(wxCommandEvent& WXUNUSED(event))
     UpdateView(snapView - 1);
     SnapStatus();
 }
-void SnapFrame::AutoStart(wxString& baseName)
+bool SnapFrame::AutoStart(wxString& baseName)
 {
     wxStopWatch watch;
     wxMessageOutputStderr progress;
@@ -731,7 +743,12 @@ void SnapFrame::AutoStart(wxString& baseName)
         snapSaved[i] = false;
     }
     DISABLE_HIGH_RES_TIMER();
-    SaveShots(baseName);
+    if (!SaveShots(baseName))
+    {
+        progress.Printf("Writing FITS File Error!");
+        return false;
+    }
+    return true;
 }
 void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
 {
