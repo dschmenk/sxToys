@@ -101,7 +101,8 @@ private:
 	HANDLE         camHandles[SXCCD_MAX_CAMS];
     t_sxccd_params camParams[SXCCD_MAX_CAMS];
     int            camSelect, camCount;
-    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth, ccdPixelCount;
+    unsigned int   ccdFrameWidth, ccdFrameHeight, ccdFrameDepth;
+    unsigned int   ccdPixelCount, ccdFieldHeight, ccdFieldPixelCount;
     float          ccdPixelWidth, ccdPixelHeight;
     wxString       snapFilePath;
     wxString       snapBaseName;
@@ -393,6 +394,17 @@ bool SnapFrame::ConnectCamera(int index)
         ccdPixelWidth  = camParams[camSelect].pix_width;
         ccdPixelHeight = camParams[camSelect].pix_height;
         ccdPixelCount  = FRAMEBUF_COUNT(ccdFrameWidth, ccdFrameHeight, 1, 1);;
+        ccdFieldHeight = ccdFrameHeight;
+        ccdFieldPixelCount = ccdPixelCount;
+        if (ccdModel & SXCCD_INTERLEAVE)
+        {
+            /*
+             * Adjust vertical sizes to accomodate interlaced image.
+             */
+            ccdPixelHeight    /= 2;
+            ccdFrameHeight    *= 2;
+            ccdPixelCount     *= 2;
+        }
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     }
     else
@@ -697,12 +709,52 @@ void SnapFrame::OnBackward(wxCommandEvent& WXUNUSED(event))
 }
 bool SnapFrame::AutoStart(wxString& baseName)
 {
+    uint16_t *interFrame = NULL;
     wxStopWatch watch;
     wxMessageOutputStderr progress;
-    int i;
-    long timeDelta, timeElapsed = 0, timeDownload = 0, timeTotal = snapCount * (snapExposure + timeDownload);
+    long timeDelta, timeTotal = snapCount * (snapExposure + calibratedDownload);
     ENABLE_HIGH_RES_TIMER();
-    for (i = 0; i < snapCount; i++)
+    if (ccdModel != calibratedCamera)
+    {
+        /*
+         * Measure download time.
+         */
+        uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
+        watch.Start();
+        sxLatchImage(camHandles[camSelect], // cam handle
+                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                     SXCCD_IMAGE_HEAD, // main ccd
+                     0,              // xoffset
+                     0,              // yoffset
+                     ccdFrameWidth,  // width
+                     ccdFieldHeight, // height
+                     1,              // xbin
+                     1);             // ybin
+        if (!sxReadImage(camHandles[camSelect], // cam handle
+                         dummyFrame, //pixbuf
+                         ccdFieldPixelCount)) // pix count
+        {
+            free(dummyFrame);
+            DISABLE_HIGH_RES_TIMER();
+            progress.Printf("\nCamera Error!");
+            return false;
+        }
+        calibratedDownload = watch.Time();
+        calibratedCamera   = ccdModel;
+        free(dummyFrame);
+    }
+    if (ccdModel & SXCCD_INTERLEAVE)
+    {
+        /*
+         * Two cases for interleaved download: overlap if exposure is longer than download, or serially.
+         */
+        if (snapExposure >= calibratedDownload)
+            timeTotal += calibratedDownload;
+        else
+            timeTotal *= 2;
+        interFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
+    }
+    for (int i = 0; i < snapCount; i++)
     {
         /*
          * Init frame.
@@ -711,45 +763,104 @@ bool SnapFrame::AutoStart(wxString& baseName)
         progress.Printf(wxT("\nIntegrating Image %d of %d: "), i + 1, snapCount);
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
         watch.Start();
-        while ((timeDelta = snapExposure - watch.Time()) > 1500)
+        if (ccdModel & SXCCD_INTERLEAVE && snapExposure >= calibratedDownload)
         {
             /*
-             * Clear registers every second.
+             * Overlap field integrations.
+             */
+            while ((timeDelta = calibratedDownload - watch.Time()) > 1000)
+            {
+                /*
+                 * Clear interline registers every second.
+                 */
+                wxMilliSleep(1000);
+                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
+            }
+            if (timeDelta > 0)
+                wxMilliSleep(timeDelta);
+            /*
+             * Clear odd field.
+             */
+            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
+        }
+        while ((timeDelta = snapExposure - watch.Time()) > 1000)
+        {
+            /*
+             * Clear interline registers every second.
              */
             wxMilliSleep(1000);
-            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOCLEAR_FRAME, SXCCD_IMAGE_HEAD);
-            /*
-             * Allow dialog feedback.
-             */
-            timeElapsed += 1000;
-            progress.Printf(wxT("  %02ld%%"), watch.Time()*100/snapExposure);
+            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
         }
         if (timeDelta > 0)
-        {
             wxMilliSleep(timeDelta);
-            timeElapsed += timeDelta;
-        }
         sxLatchImage(camHandles[camSelect], // cam handle
-                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                     SXCCD_EXP_FLAGS_FIELD_EVEN, // options
                      SXCCD_IMAGE_HEAD, // main ccd
                      0,              // xoffset
                      0,              // yoffset
                      ccdFrameWidth,  // width
-                     ccdFrameHeight, // height
+                     ccdFieldHeight, // height
                      1,              // xbin
                      1);             // ybin
-        progress.Printf(wxT(" 100%%"));
         if (!sxReadImage(camHandles[camSelect], // cam handle
                          snapShots[i], //pixbuf
-                         ccdPixelCount)) // pix count
+                         ccdFieldPixelCount)) // pix count
         {
             progress.Printf("\nCamera Error!");
-            break;
+            return false;
+        }
+        if (ccdModel & SXCCD_INTERLEAVE && snapExposure < calibratedDownload)
+        {
+            /*
+             * Integrate odd field seperately.
+             */
+            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD, SXCCD_IMAGE_HEAD);
+            watch.Start();
+            while ((timeDelta = snapExposure - watch.Time()) > 1500)
+            {
+                /*
+                 * Clear registers every second.
+                 */
+                wxMilliSleep(1000);
+                sxClearImage(camHandles[camSelect], 0, SXCCD_IMAGE_HEAD);
+            }
+            if (timeDelta > 0)
+                wxMilliSleep(timeDelta);
+        }
+        if (ccdModel & SXCCD_INTERLEAVE)
+        {
+            sxLatchImage(camHandles[camSelect], // cam handle
+                         SXCCD_EXP_FLAGS_FIELD_ODD, // options
+                         SXCCD_IMAGE_HEAD, // main ccd
+                         0,              // xoffset
+                         0,              // yoffset
+                         ccdFrameWidth,  // width
+                         ccdFieldHeight, // height
+                         1,              // xbin
+                         1);             // ybin
+            if (!sxReadImage(camHandles[camSelect], // cam handle
+                             interFrame, //pixbuf
+                             ccdFieldPixelCount)) // pix count
+            {
+                progress.Printf("\nCamera Error!");
+                free(interFrame);
+                return false;
+            }
+            /*
+             * Interleave the scanlines.
+             */
+            for (int l = ccdFieldHeight - 1; l > 0; l--)
+            {
+                memcpy(snapShots[i] +  2 * l      * ccdFrameWidth, snapShots[i] + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
+                memcpy(snapShots[i] + (2 * l + 1) * ccdFrameWidth, interFrame   + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
+            }
         }
         snapMax = i + 1;
         snapSaved[i] = false;
     }
     DISABLE_HIGH_RES_TIMER();
+    if (interFrame)
+        free(interFrame);
     if (!SaveShots(baseName))
     {
         progress.Printf("Writing FITS File Error!");
@@ -759,9 +870,9 @@ bool SnapFrame::AutoStart(wxString& baseName)
 }
 void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
 {
+    uint16_t *interFrame = NULL;
     wxStopWatch watch;
     wxString progress;
-    int i;
     if (!AreSaved())
         if (wxMessageBox("Save images before overwriting?", "Exit Warning", wxYES_NO | wxICON_INFORMATION) == wxYES)
         {
@@ -770,13 +881,15 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
         }
     if (ccdModel)
     {
+        FreeShots();
+        snapImage = new wxImage(ccdFrameWidth, ccdFrameHeight);
         ENABLE_HIGH_RES_TIMER();
         if (ccdModel != calibratedCamera)
         {
             /*
              * Measure download time.
              */
-            uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
+            uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
             wxProgressDialog dlg(wxT("SnapShot Progress"),
                                  wxT("Calibrating download..."),
                                  calibratedDownload,
@@ -790,12 +903,12 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                          0,              // xoffset
                          0,              // yoffset
                          ccdFrameWidth,  // width
-                         ccdFrameHeight, // height
+                         ccdFieldHeight, // height
                          1,              // xbin
                          1);             // ybin
             if (!sxReadImage(camHandles[camSelect], // cam handle
                              dummyFrame, //pixbuf
-                             ccdPixelCount)) // pix count
+                             ccdFieldPixelCount)) // pix count
             {
                 free(dummyFrame);
                 DISABLE_HIGH_RES_TIMER();
@@ -803,12 +916,23 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 dlg.Close();
                 return;
             }
-            dlg.Close();
-            calibratedCamera   = ccdModel;
             calibratedDownload = watch.Time();
+            calibratedCamera   = ccdModel;
             free(dummyFrame);
+            dlg.Close();
         }
         long timeDelta, timeElapsed = 0, timeTotal = snapCount * (snapExposure + calibratedDownload);
+        if (ccdModel & SXCCD_INTERLEAVE)
+        {
+            /*
+             * Two cases for interleaved download: overlap if exposure is longer than download, or serially.
+             */
+            if (snapExposure >= calibratedDownload)
+                timeTotal += calibratedDownload;
+            else
+                timeTotal *= 2;
+            interFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
+        }
         wxProgressDialog dlg(wxT("SnapShot Progress"),
                              wxT("Integrating images..."),
                              timeTotal,
@@ -817,9 +941,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                            | wxPD_APP_MODAL
                            | wxPD_ELAPSED_TIME
                            | wxPD_REMAINING_TIME);
-        FreeShots();
-        snapImage = new wxImage(ccdFrameWidth, ccdFrameHeight);
-        for (i = 0; i < snapCount; i++)
+        for (int i = 0; i < snapCount; i++)
         {
             /*
              * Init frame.
@@ -830,13 +952,42 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 goto cancelled;
             sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
             watch.Start();
-            while ((timeDelta = snapExposure - watch.Time()) > 1500)
+            if (ccdModel & SXCCD_INTERLEAVE && snapExposure >= calibratedDownload)
             {
                 /*
-                 * Clear registers every second.
+                 * Overlap field integrations.
+                 */
+                while ((timeDelta = calibratedDownload - watch.Time()) > 1000)
+                {
+                    /*
+                     * Clear interline registers every second.
+                     */
+                    wxMilliSleep(1000);
+                    sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
+                    /*
+                     * Allow dialog feedback.
+                     */
+                    timeElapsed += 1000;
+                    if (!dlg.Update(timeElapsed))
+                        goto cancelled;
+                }
+                if (timeDelta > 0)
+                {
+                    wxMilliSleep(timeDelta);
+                    timeElapsed += timeDelta;
+                }
+                /*
+                 * Clear odd field.
+                 */
+                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
+            }
+            while ((timeDelta = snapExposure - watch.Time()) > 1000)
+            {
+                /*
+                 * Clear interline registers every second.
                  */
                 wxMilliSleep(1000);
-                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOCLEAR_FRAME, SXCCD_IMAGE_HEAD);
+                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
                 /*
                  * Allow dialog feedback.
                  */
@@ -850,34 +1001,89 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 timeElapsed += timeDelta;
             }
             sxLatchImage(camHandles[camSelect], // cam handle
-                         SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                         SXCCD_EXP_FLAGS_FIELD_EVEN, // options
                          SXCCD_IMAGE_HEAD, // main ccd
                          0,              // xoffset
                          0,              // yoffset
                          ccdFrameWidth,  // width
-                         ccdFrameHeight, // height
+                         ccdFieldHeight, // height
                          1,              // xbin
                          1);             // ybin
             if (!sxReadImage(camHandles[camSelect], // cam handle
                              snapShots[i], //pixbuf
-                             ccdPixelCount)) // pix count
+                             ccdFieldPixelCount)) // pix count
             {
                 wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
                 goto cancelled;
+            }
+            timeElapsed += calibratedDownload;
+            if (ccdModel & SXCCD_INTERLEAVE && snapExposure < calibratedDownload)
+            {
+                /*
+                 * Integrate odd field seperately.
+                 */
+                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD, SXCCD_IMAGE_HEAD);
+                watch.Start();
+                while ((timeDelta = snapExposure - watch.Time()) > 1500)
+                {
+                    /*
+                     * Clear registers every second.
+                     */
+                    wxMilliSleep(1000);
+                    sxClearImage(camHandles[camSelect], 0, SXCCD_IMAGE_HEAD);
+                    /*
+                     * Allow dialog feedback.
+                     */
+                    timeElapsed += 1000;
+                    if (!dlg.Update(timeElapsed))
+                        goto cancelled;
+                }
+                if (timeDelta > 0)
+                {
+                    wxMilliSleep(timeDelta);
+                    timeElapsed += timeDelta;
+                }
+            }
+            if (ccdModel & SXCCD_INTERLEAVE)
+            {
+                sxLatchImage(camHandles[camSelect], // cam handle
+                             SXCCD_EXP_FLAGS_FIELD_ODD, // options
+                             SXCCD_IMAGE_HEAD, // main ccd
+                             0,              // xoffset
+                             0,              // yoffset
+                             ccdFrameWidth,  // width
+                             ccdFieldHeight, // height
+                             1,              // xbin
+                             1);             // ybin
+                if (!sxReadImage(camHandles[camSelect], // cam handle
+                                 interFrame, //pixbuf
+                                 ccdFieldPixelCount)) // pix count
+                {
+                    wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
+                    goto cancelled;
+                }
+                /*
+                 * Interleave the scanlines.
+                 */
+                for (int l = ccdFieldHeight - 1; l > 0; l--)
+                {
+                    memcpy(snapShots[i] +  2 * l      * ccdFrameWidth, snapShots[i] + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
+                    memcpy(snapShots[i] + (2 * l + 1) * ccdFrameWidth, interFrame   + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
+                }
+                timeElapsed += calibratedDownload;
             }
             snapMax = i + 1;
             UpdateView(i);
             SnapStatus();
             snapSaved[i] = false;
-            timeElapsed += calibratedDownload;
             if (timeElapsed > timeTotal)
                 timeElapsed = timeTotal;
-//            if (!dlg.Update(timeElapsed))
-//                goto cancelled;
         }
 cancelled:
         DISABLE_HIGH_RES_TIMER();
         dlg.Close();
+        if (interFrame)
+            free(interFrame);
     }
     else
         wxMessageBox("Camera Not Connected", "SX SnapShot", wxOK | wxICON_INFORMATION);
