@@ -593,7 +593,7 @@ void ScanFrame::UpdateAlign()
                  */
                 tdiExposure = 0.0;
                 tdiScanRate = 0.0;
-                numFrames = 0;
+                numFrames   = 0;
             }
         }
         else

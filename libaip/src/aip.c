@@ -99,11 +99,11 @@ int findBestCentroid(int width, int height, unsigned short *pixels, float *x_cen
                 {
                     /*
                      * Avoid hot pixels
+                     if ((pixel_ave < pixels[j * width + i + 1])
+                      && (pixel_ave < pixels[j * width + i - 1])
+                      && (pixel_ave < pixels[(j + 1) * width + i])
+                      && (pixel_ave < pixels[(j - 1) * width + i]))
                      */
-                     if ((pixel_min < pixels[j * width + i + 1])
-                      && (pixel_min < pixels[j * width + i - 1])
-                      && (pixel_min < pixels[(j + 1) * width + i])
-                      && (pixel_min < pixels[(j - 1) * width + i]))
                     {
                         /*
                          * Find radius of highlight

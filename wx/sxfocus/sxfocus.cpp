@@ -97,6 +97,7 @@ private:
     int            xOffset, yOffset;
     int            focusZoom, focusExposure;
     int            zoomWidth, zoomHeight;
+    bool           zoomTracking;
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
@@ -116,6 +117,7 @@ private:
     void OnFilter(wxCommandEvent& event);
     void OnAutoLevels(wxCommandEvent& event);
     void OnResetLevels(wxCommandEvent& event);
+    void OnZoomTracking(wxCommandEvent& event);
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
     void OnContrastInc(wxCommandEvent& event);
@@ -140,6 +142,7 @@ enum
     ID_FILTER,
     ID_LEVEL_AUTO,
     ID_LEVEL_RESET,
+    ID_ZOOM_TRACK,
     ID_ZOOM_IN,
     ID_ZOOM_OUT,
     ID_CONT_INC,
@@ -159,6 +162,7 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_FILTER,      FocusFrame::OnFilter)
     EVT_MENU(ID_LEVEL_AUTO,  FocusFrame::OnAutoLevels)
     EVT_MENU(ID_LEVEL_RESET, FocusFrame::OnResetLevels)
+    EVT_MENU(ID_ZOOM_TRACK,  FocusFrame::OnZoomTracking)
     EVT_MENU(ID_ZOOM_IN,     FocusFrame::OnZoomIn)
     EVT_MENU(ID_ZOOM_OUT,    FocusFrame::OnZoomOut)
     EVT_MENU(ID_CONT_INC,    FocusFrame::OnContrastInc)
@@ -239,16 +243,18 @@ bool FocusApp::OnInit()
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
     CreateStatusBar(4);
-    snapCount   = 0;
-    focusImage  = NULL;
-    ccdFrame    = NULL;
-    autoLevels  = false;
-    pixelFilter = false;
-    pixelGamma  = 1.5;
+    snapCount    = 0;
+    focusImage   = NULL;
+    ccdFrame     = NULL;
+    autoLevels   = false;
+    pixelFilter  = false;
+    pixelGamma   = 1.5;
+    zoomTracking = true;
     wxConfig config(wxT("sxFocus"), wxT("sxToys"));
     config.Read(wxT("AutoLevels"), &autoLevels);
     config.Read(wxT("RedFilter"),  &pixelFilter);
     config.Read(wxT("Gamma"),      &pixelGamma);
+    config.Read(wxT("Tracking"),   &zoomTracking);
     InitLevels();
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
@@ -266,6 +272,8 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
     menuView->Check(ID_LEVEL_AUTO,           autoLevels);
     menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
+    menuView->AppendCheckItem(ID_ZOOM_TRACK, wxT("Zoom Tracking\tT"));
+    menuView->Check(ID_ZOOM_TRACK,           zoomTracking);
     menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
     menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
     menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tE"));
@@ -555,7 +563,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
                              &yRadius,
                              1.0))
         {
-            CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
+            if (zoomTracking) CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
             /*
              * Draw ellipse around best star depicting FWHM
              */
@@ -593,6 +601,10 @@ void FocusFrame::OnResetLevels(wxCommandEvent& WXUNUSED(event))
 {
     InitLevels();
 }
+void FocusFrame::OnZoomTracking(wxCommandEvent& event)
+{
+    zoomTracking = event.IsChecked();
+}
 void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
 {
     char statusText[20];
@@ -612,7 +624,7 @@ void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
             zoomHeight = ccdFrameHeight >> focusZoom;
             xOffset += zoomWidth / 2;
             yOffset += zoomHeight / 2;
-            CenterCentroid(xBestCentroid / 2, yBestCentroid / 2, zoomWidth, zoomHeight);
+            if (zoomTracking) CenterCentroid(xBestCentroid / 2, yBestCentroid / 2, zoomWidth, zoomHeight);
             sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
         }
         SetStatusText(statusText, 1);
@@ -641,7 +653,7 @@ void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
             zoomHeight = ccdFrameHeight >> focusZoom;
             xOffset -= zoomWidth / 4;
             yOffset -= zoomHeight / 4;
-            CenterCentroid(xBestCentroid * 2, yBestCentroid * 2, zoomWidth, zoomHeight);
+            if (zoomTracking) CenterCentroid(xBestCentroid * 2, yBestCentroid * 2, zoomWidth, zoomHeight);
             sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
         }
         SetStatusText(statusText, 1);
@@ -706,6 +718,7 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
     config.Write(wxT("RedFilter"),  pixelFilter);
     config.Write(wxT("AutoLevels"), autoLevels);
     config.Write(wxT("Gamma"),      pixelGamma);
+    config.Write(wxT("Tracking"),   zoomTracking);
     Destroy();
 }
 void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))

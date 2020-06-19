@@ -112,6 +112,7 @@ private:
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
     bool           pixelFilter, autoLevels;
+    int            calibratedCamera, calibratedDownload;
     wxImage       *snapImage;
     wxStopWatch   *snapWatch;
     void InitLevels();
@@ -241,8 +242,10 @@ bool SnapApp::OnCmdLineParsed(wxCmdLineParser &parser)
 }
 bool SnapApp::OnInit()
 {
-#ifndef _MSC_VER
     wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
+    config.Read(wxT("Exposure"),   &initialExposure);
+    config.Read(wxT("Number"),     &initialCount);
+#ifndef _MSC_VER
     config.Read(wxT("USB1Camera"), &camUSBType);
 #endif
     if (wxApp::OnInit())
@@ -268,20 +271,24 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
 {
     CreateStatusBar(3);
     memset(snapShots, 0, sizeof(uint16_t) * MAX_SNAPSHOTS);
-    snapFilePath = wxGetCwd();
-    snapBaseName = initialBaseName;
-    snapCount    = initialCount;
-    snapImage    = NULL;
-    snapView     = 0;
-    snapMax      = 0;
-    snapExposure = initialExposure;
-    autoLevels   = false;
-    pixelFilter  = false;
-    pixelGamma   = 1.5;
+    snapFilePath       = wxGetCwd();
+    snapBaseName       = initialBaseName;
+    snapExposure       = initialExposure;
+    snapCount          = initialCount;
+    snapImage          = NULL;
+    snapView           = 0;
+    snapMax            = 0;
+    autoLevels         = false;
+    pixelFilter        = false;
+    pixelGamma         = 1.5;
+    calibratedCamera   = 0;
+    calibratedDownload = 0;
     wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
-    config.Read(wxT("AutoLevels"), &autoLevels);
-    config.Read(wxT("RedFilter"),  &pixelFilter);
-    config.Read(wxT("Gamma"),      &pixelGamma);
+    config.Read(wxT("AutoLevels"),         &autoLevels);
+    config.Read(wxT("RedFilter"),          &pixelFilter);
+    config.Read(wxT("Gamma"),              &pixelGamma);
+    config.Read(wxT("CalibratedCamera"),   &calibratedCamera);
+    config.Read(wxT("CalibratedDownload"), &calibratedDownload);
     InitLevels();
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
@@ -763,26 +770,61 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
         }
     if (ccdModel)
     {
-        long timeDelta, timeElapsed = 0, timeDownload = 0, timeTotal = snapCount * (snapExposure + timeDownload);
-        FreeShots();
-        snapImage    = new wxImage(ccdFrameWidth, ccdFrameHeight);
-        progress.Printf(wxT("Integrating Image 0 of %d..."), snapCount);
+        ENABLE_HIGH_RES_TIMER();
+        if (ccdModel != calibratedCamera)
+        {
+            /*
+             * Measure download time.
+             */
+            uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
+            wxMessageDialog dlg(this,
+                                wxT("SnapShot Progress"),
+                                wxT("Calibrating download..."),
+                                wxCENTER);
+            dlg.Show();
+            watch.Start();
+            sxLatchImage(camHandles[camSelect], // cam handle
+                         SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                         SXCCD_IMAGE_HEAD, // main ccd
+                         0,              // xoffset
+                         0,              // yoffset
+                         ccdFrameWidth,  // width
+                         ccdFrameHeight, // height
+                         1,              // xbin
+                         1);             // ybin
+            if (!sxReadImage(camHandles[camSelect], // cam handle
+                             dummyFrame, //pixbuf
+                             ccdPixelCount)) // pix count
+            {
+                free(dummyFrame);
+                DISABLE_HIGH_RES_TIMER();
+                wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
+                dlg.Close();
+                return;
+            }
+            dlg.Close();
+            calibratedCamera   = ccdModel;
+            calibratedDownload = watch.Time();
+            free(dummyFrame);
+        }
+        long timeDelta, timeElapsed = 0, timeTotal = snapCount * (snapExposure + calibratedDownload);
         wxProgressDialog dlg(wxT("SnapShot Progress"),
-                             progress,
+                             wxT("Integrating images..."),
                              timeTotal,
                              this,
                              wxPD_CAN_ABORT
                            | wxPD_APP_MODAL
                            | wxPD_ELAPSED_TIME
                            | wxPD_REMAINING_TIME);
-        ENABLE_HIGH_RES_TIMER();
+        FreeShots();
+        snapImage = new wxImage(ccdFrameWidth, ccdFrameHeight);
         for (i = 0; i < snapCount; i++)
         {
             /*
              * Init frame.
              */
             snapShots[i] = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
-            progress.Printf(wxT("Integrating Image %d of %d..."), i + 1, snapCount);
+            progress.Printf(wxT("Integrating image %d of %d..."), i + 1, snapCount);
             if (!dlg.Update(timeElapsed, progress))
                 goto cancelled;
             sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
@@ -826,8 +868,11 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
             UpdateView(i);
             SnapStatus();
             snapSaved[i] = false;
-            if (!dlg.Update(timeElapsed))
-                goto cancelled;
+            timeElapsed += calibratedDownload;
+            if (timeElapsed > timeTotal)
+                timeElapsed = timeTotal;
+//            if (!dlg.Update(timeElapsed))
+//                goto cancelled;
         }
 cancelled:
         DISABLE_HIGH_RES_TIMER();
@@ -878,9 +923,13 @@ void SnapFrame::OnClose(wxCloseEvent& event)
 		camCount = 0;
 	}
     wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
-    config.Write(wxT("RedFilter"),  pixelFilter);
-    config.Write(wxT("AutoLevels"), autoLevels);
-    config.Write(wxT("Gamma"),      pixelGamma);
+    config.Write(wxT("RedFilter"),          pixelFilter);
+    config.Write(wxT("AutoLevels"),         autoLevels);
+    config.Write(wxT("Gamma"),              pixelGamma);
+    config.Write(wxT("CalibratedCamera"),   calibratedCamera);
+    config.Write(wxT("CalibratedDownload"), calibratedDownload);
+    config.Write(wxT("Exposure"),           snapExposure);
+    config.Write(wxT("Number"),             snapCount);
     Destroy();
 }
 void SnapFrame::OnExit(wxCommandEvent& WXUNUSED(event))
