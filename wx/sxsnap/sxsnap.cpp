@@ -777,11 +777,12 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
              * Measure download time.
              */
             uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdPixelCount);
-            wxMessageDialog dlg(this,
-                                wxT("SnapShot Progress"),
-                                wxT("Calibrating download..."),
-                                wxCENTER);
-            dlg.Show();
+            wxProgressDialog dlg(wxT("SnapShot Progress"),
+                                 wxT("Calibrating download..."),
+                                 calibratedDownload,
+                                 this,
+                                 wxPD_APP_MODAL);
+            dlg.Update(0);
             watch.Start();
             sxLatchImage(camHandles[camSelect], // cam handle
                          SXCCD_EXP_FLAGS_FIELD_BOTH, // options
