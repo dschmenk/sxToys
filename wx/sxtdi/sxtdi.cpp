@@ -1184,5 +1184,5 @@ void ScanFrame::OnGamma(wxCommandEvent& WXUNUSED(event))
 }
 void ScanFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Alpha 3\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Alpha 4\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
 }
