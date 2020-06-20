@@ -476,7 +476,7 @@ void SnapFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
         camUSBType = FixedModels[dlg.GetSelection()];
         sxSetCameraModel(camHandles[camSelect], camUSBType);
         ConnectCamera(camSelect);
-        wxConfig config(wxT("sxSnap"), wxT("sxToys"));
+        wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
         config.Write(wxT("USB1Camera"), camUSBType);
     }
     else
@@ -722,7 +722,6 @@ bool SnapFrame::AutoStart(wxString& baseName)
          */
         interFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
         watch.Start();
-        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
         sxLatchImage(camHandles[camSelect], // cam handle
                      SXCCD_EXP_FLAGS_FIELD_ODD, // options
                      SXCCD_IMAGE_HEAD, // main ccd
@@ -741,6 +740,7 @@ bool SnapFrame::AutoStart(wxString& baseName)
             progress.Printf("\nCamera Error!");
             return false;
         }
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
         calibratedDownload = watch.Time();
         calibratedCamera   = ccdModel;
     }
@@ -890,7 +890,6 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
             uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
             dlg.Update(0);
             watch.Start();
-            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
             sxLatchImage(camHandles[camSelect], // cam handle
                          SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                          SXCCD_IMAGE_HEAD, // main ccd
@@ -909,6 +908,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
                 return;
             }
+            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
             calibratedDownload = watch.Time();
             calibratedCamera   = ccdModel;
             free(dummyFrame);
