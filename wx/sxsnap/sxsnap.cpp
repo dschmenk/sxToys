@@ -1132,5 +1132,5 @@ void SnapFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 }
 void SnapFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    wxMessageBox("Starlight Xpress SnapShot\nVersion 0.1 Alpha 3\nCopyright (c) 2003-2020, David Schmenk", "About SX SnapShot", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress SnapShot\nVersion 0.1 Alpha 4\nCopyright (c) 2003-2020, David Schmenk", "About SX SnapShot", wxOK | wxICON_INFORMATION);
 }
