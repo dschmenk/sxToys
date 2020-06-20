@@ -75,7 +75,7 @@ int FixedModels[] = {SXCCD_HX5,
  */
 int      camUSBType      = 0;
 double   initialRate     = 0.0;
-long     initialDuration = 0;
+long     initialDuration = 6;
 wxString initialFileName = wxT("Untitled.fits");
 long     initialBinX     = 1;
 long     initialBinY     = 1;
@@ -84,7 +84,7 @@ bool     autonomous      = false;
 /*
  * Bin choices
  */
-wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
+wxString BinChoices[] = {wxT("1X"), wxT("2X"), wxT("3X"), wxT("4X")};
 /*
  * Gamma choices
  */
@@ -274,6 +274,7 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
         {
             case 1:
             case 2:
+            case 3:
             case 4:
                 break;
             default:
@@ -286,6 +287,7 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
         {
             case 1:
             case 2:
+            case 3:
             case 4:
                 break;
             default:
@@ -301,6 +303,7 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
 bool ScanApp::OnInit()
 {
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
+    config.Read(wxT("Duration"),   &initialDuration);
     config.Read(wxT("ScanRate"),   &initialRate);
     config.Read(wxT("BinX"),       &initialBinX);
     config.Read(wxT("BinY"),       &initialBinY);
@@ -901,12 +904,12 @@ void ScanFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
         wxSingleChoiceDialog dlg(this,
                               wxT("X Bin:"),
                               wxT("X Binning"),
-                              3,
+                              4,
                               BinChoices);
         if (dlg.ShowModal() == wxID_OK )
         {
             char binText[10];
-            ccdBinX =  1 << dlg.GetSelection();
+            ccdBinX =  dlg.GetSelection() + 1;
             sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
             SetStatusText(binText, 2);
         }
@@ -921,12 +924,12 @@ void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
         wxSingleChoiceDialog dlg(this,
                               wxT("Y Bin:"),
                               wxT("Y Binning"),
-                              3,
+                              4,
                               BinChoices);
         if (dlg.ShowModal() == wxID_OK )
         {
             char binText[10];
-            ccdBinY =  1 << dlg.GetSelection();
+            ccdBinY =  dlg.GetSelection() + 1;
             sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
             SetStatusText(binText, 2);
         }
@@ -1153,6 +1156,7 @@ void ScanFrame::OnClose(wxCloseEvent& event)
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Write(wxT("RedFilter"),  pixelFilter);
     config.Write(wxT("Gamma"),      pixelGamma);
+    config.Write(wxT("Duration"),   tdiMinutes/60);
     config.Write(wxT("ScanRate"),   tdiScanRate);
     config.Write(wxT("BinX"),       ccdBinX);
     config.Write(wxT("BinY"),       ccdBinY);

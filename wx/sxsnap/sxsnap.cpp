@@ -288,6 +288,8 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     config.Read(wxT("AutoLevels"),         &autoLevels);
     config.Read(wxT("RedFilter"),          &pixelFilter);
     config.Read(wxT("Gamma"),              &pixelGamma);
+    config.Read(wxT("CalibratedDownload"), &calibratedDownload);
+    config.Read(wxT("CalibratedCamera"),   &calibratedCamera);
     InitLevels();
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
@@ -399,9 +401,10 @@ bool SnapFrame::ConnectCamera(int index)
             /*
              * Adjust vertical sizes to accomodate interlaced image.
              */
-            ccdPixelHeight    /= 2;
-            ccdFrameHeight    *= 2;
-            ccdPixelCount     *= 2;
+            ccdPixelHeight  /= 2;
+            ccdFrameHeight  *= 2;
+            ccdPixelCount   *= 2;
+            calibratedCamera = 0; // Always recalibrate interlaced cameras download speed
         }
         sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
     }
@@ -710,17 +713,18 @@ bool SnapFrame::AutoStart(wxString& baseName)
     uint16_t *interFrame = NULL;
     wxStopWatch watch;
     wxMessageOutputStderr progress;
-    long timeDelta, timeTotal = snapCount * (snapExposure + calibratedDownload);
+    long timeDelta;
     ENABLE_HIGH_RES_TIMER();
-    if (ccdModel != calibratedCamera)
+    if (ccdModel & SXCCD_INTERLEAVE)
     {
         /*
-         * Measure download time.
+         * Measure download time only for interlacrd CCDs.
          */
-        uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
+        interFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
         watch.Start();
+        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
         sxLatchImage(camHandles[camSelect], // cam handle
-                     SXCCD_EXP_FLAGS_FIELD_BOTH, // options
+                     SXCCD_EXP_FLAGS_FIELD_ODD, // options
                      SXCCD_IMAGE_HEAD, // main ccd
                      0,              // xoffset
                      0,              // yoffset
@@ -729,28 +733,16 @@ bool SnapFrame::AutoStart(wxString& baseName)
                      1,              // xbin
                      1);             // ybin
         if (!sxReadImage(camHandles[camSelect], // cam handle
-                         dummyFrame, //pixbuf
+                         interFrame, //pixbuf
                          ccdFieldPixelCount)) // pix count
         {
-            free(dummyFrame);
             DISABLE_HIGH_RES_TIMER();
+            free(interFrame);
             progress.Printf("\nCamera Error!");
             return false;
         }
         calibratedDownload = watch.Time();
         calibratedCamera   = ccdModel;
-        free(dummyFrame);
-    }
-    if (ccdModel & SXCCD_INTERLEAVE)
-    {
-        /*
-         * Two cases for interleaved download: overlap if exposure is longer than download, or serially.
-         */
-        if (snapExposure >= calibratedDownload)
-            timeTotal += calibratedDownload;
-        else
-            timeTotal *= 2;
-        interFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
     }
     for (int i = 0; i < snapCount; i++)
     {
@@ -847,7 +839,7 @@ bool SnapFrame::AutoStart(wxString& baseName)
             /*
              * Interleave the scanlines.
              */
-            for (int l = ccdFieldHeight - 1; l > 0; l--)
+            for (int l = ccdFieldHeight - 1; l >= 0; l--)
             {
                 memcpy(snapShots[i] +  2 * l      * ccdFrameWidth, snapShots[i] + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
                 memcpy(snapShots[i] + (2 * l + 1) * ccdFrameWidth, interFrame   + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
@@ -898,6 +890,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
             uint16_t *dummyFrame = (uint16_t *)malloc(sizeof(uint16_t) * ccdFieldPixelCount);
             dlg.Update(0);
             watch.Start();
+            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
             sxLatchImage(camHandles[camSelect], // cam handle
                          SXCCD_EXP_FLAGS_FIELD_BOTH, // options
                          SXCCD_IMAGE_HEAD, // main ccd
@@ -1059,7 +1052,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 /*
                  * Interleave the scanlines.
                  */
-                for (int l = ccdFieldHeight - 1; l > 0; l--)
+                for (int l = ccdFieldHeight - 1; l >= 0; l--)
                 {
                     memcpy(snapShots[i] +  2 * l      * ccdFrameWidth, snapShots[i] + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
                     memcpy(snapShots[i] + (2 * l + 1) * ccdFrameWidth, interFrame   + l * ccdFrameWidth, sizeof(uint16_t) * ccdFrameWidth);
@@ -1129,6 +1122,8 @@ void SnapFrame::OnClose(wxCloseEvent& event)
     config.Write(wxT("Gamma"),              pixelGamma);
     config.Write(wxT("Exposure"),           snapExposure);
     config.Write(wxT("Number"),             snapCount);
+    config.Write(wxT("CalibratedDownload"), calibratedDownload);
+    config.Write(wxT("CalibratedCamera"),   calibratedCamera);
     Destroy();
 }
 void SnapFrame::OnExit(wxCommandEvent& WXUNUSED(event))
