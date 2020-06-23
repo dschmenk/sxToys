@@ -97,22 +97,27 @@ private:
     int            xOffset, yOffset;
     int            focusZoom, focusExposure;
     int            zoomWidth, zoomHeight;
+    bool           zoomTracking;
     int            pixelMax, pixelMin;
     int            pixelBlack, pixelWhite;
     float          pixelGamma;
     bool           pixelFilter, autoLevels, snapped;
     int            snapCount;
+    wxImage       *focusImage;
     wxTimer        focusTimer;
     void InitLevels();
     bool ConnectCamera(int index);
     void CenterCentroid(float x, float y, int width, int height);
     void OnSnapImage(wxCommandEvent& event);
     void OnTimer(wxTimerEvent& event);
+    void OnBackground(wxEraseEvent& event);
+    void OnPaint(wxPaintEvent& event);
     void OnConnect(wxCommandEvent& event);
     void OnOverride(wxCommandEvent& event);
     void OnFilter(wxCommandEvent& event);
     void OnAutoLevels(wxCommandEvent& event);
     void OnResetLevels(wxCommandEvent& event);
+    void OnZoomTracking(wxCommandEvent& event);
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
     void OnContrastInc(wxCommandEvent& event);
@@ -137,6 +142,7 @@ enum
     ID_FILTER,
     ID_LEVEL_AUTO,
     ID_LEVEL_RESET,
+    ID_ZOOM_TRACK,
     ID_ZOOM_IN,
     ID_ZOOM_OUT,
     ID_CONT_INC,
@@ -156,6 +162,7 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_FILTER,      FocusFrame::OnFilter)
     EVT_MENU(ID_LEVEL_AUTO,  FocusFrame::OnAutoLevels)
     EVT_MENU(ID_LEVEL_RESET, FocusFrame::OnResetLevels)
+    EVT_MENU(ID_ZOOM_TRACK,  FocusFrame::OnZoomTracking)
     EVT_MENU(ID_ZOOM_IN,     FocusFrame::OnZoomIn)
     EVT_MENU(ID_ZOOM_OUT,    FocusFrame::OnZoomOut)
     EVT_MENU(ID_CONT_INC,    FocusFrame::OnContrastInc)
@@ -168,6 +175,8 @@ wxBEGIN_EVENT_TABLE(FocusFrame, wxFrame)
     EVT_MENU(ID_EXPOSE_DEC,  FocusFrame::OnExposureDec)
     EVT_MENU(wxID_ABOUT,     FocusFrame::OnAbout)
     EVT_MENU(wxID_EXIT,      FocusFrame::OnExit)
+    EVT_ERASE_BACKGROUND(    FocusFrame::OnBackground)
+    EVT_PAINT(               FocusFrame::OnPaint)
     EVT_CLOSE(               FocusFrame::OnClose)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(FocusApp);
@@ -234,15 +243,18 @@ bool FocusApp::OnInit()
 FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this, ID_TIMER)
 {
     CreateStatusBar(4);
-    snapCount   = 0;
-    ccdFrame    = NULL;
-    autoLevels  = false;
-    pixelFilter = false;
-    pixelGamma  = 1.5;
+    snapCount    = 0;
+    focusImage   = NULL;
+    ccdFrame     = NULL;
+    autoLevels   = false;
+    pixelFilter  = false;
+    pixelGamma   = 1.5;
+    zoomTracking = true;
     wxConfig config(wxT("sxFocus"), wxT("sxToys"));
     config.Read(wxT("AutoLevels"), &autoLevels);
     config.Read(wxT("RedFilter"),  &pixelFilter);
     config.Read(wxT("Gamma"),      &pixelGamma);
+    config.Read(wxT("Tracking"),   &zoomTracking);
     InitLevels();
     camCount = sxProbe(camHandles, camParams, camUSBType);
     ConnectCamera(initialCamIndex);
@@ -260,6 +272,8 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
     menuView->Check(ID_LEVEL_AUTO,           autoLevels);
     menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
+    menuView->AppendCheckItem(ID_ZOOM_TRACK, wxT("Zoom Tracking\tT"));
+    menuView->Check(ID_ZOOM_TRACK,           zoomTracking);
     menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
     menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
     menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tE"));
@@ -287,6 +301,28 @@ void FocusFrame::InitLevels()
     pixelWhite    = MAX_WHITE;
     calcRamp(pixelBlack, pixelWhite, pixelGamma, pixelFilter);
 }
+void FocusFrame::OnBackground(wxEraseEvent& WXUNUSED(event))
+{
+}
+void FocusFrame::OnPaint(wxPaintEvent& WXUNUSED(event))
+{
+    int winWidth, winHeight;
+    GetClientSize(&winWidth, &winHeight);
+    if (winWidth > 0 && winHeight > 0)
+    {
+        wxClientDC dc(this);
+        if (focusImage)
+        {
+            wxBitmap bitmap(focusImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
+            dc.DrawBitmap(bitmap, 0, 0);
+        }
+        else
+        {
+            dc.SetBrush(wxBrush(*wxWHITE));
+            dc.DrawRectangle(0, 0, winWidth, winHeight);
+        }
+    }
+}
 bool FocusFrame::ConnectCamera(int index)
 {
     char statusText[40];
@@ -295,6 +331,8 @@ bool FocusFrame::ConnectCamera(int index)
     InitLevels();
     if (ccdFrame)
         free(ccdFrame);
+    if (focusImage)
+        delete focusImage;
     if (camCount)
     {
         if (index >= camCount)
@@ -337,6 +375,7 @@ bool FocusFrame::ConnectCamera(int index)
     focusZoom  = -1;
     zoomWidth  = ccdFrameWidth  >> -focusZoom;
     zoomHeight = ccdFrameHeight >> -focusZoom;
+    focusImage = new wxImage(zoomWidth, zoomHeight);
     SetStatusText(statusText, 0);
     SetStatusText("Bin: X2", 1);
     return camSelect >= 0;
@@ -423,14 +462,19 @@ void FocusFrame::OnSnapImage(wxCommandEvent& WXUNUSED(event))
 {
     if (!snapped)
     {
-        char filename[30];
-        sprintf(filename, "sxfocus-%03d.fits", snapCount++);
-        if (fits_open(filename))                                                          {fits_cleanup(); return;}
-        if (fits_write_image(ccdFrame, zoomWidth, zoomHeight))                            {fits_cleanup(); return;}
-        if (fits_write_key_int("EXPOSURE", focusExposure, "Total Exposure Time"))         {fits_cleanup(); return;}
-        if (fits_write_key_string("CREATOR", "sxFocus", "Imaging Application"))           {fits_cleanup(); return;}
-        if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")) {fits_cleanup(); return;}
-        if (fits_close())                                                                 {fits_cleanup(); return;}
+        char fits_file[30];
+        sprintf(fits_file, "sxfocus-%03d.fits", snapCount++);
+        if (fits_open(fits_file)
+         || fits_write_image(ccdFrame, zoomWidth, zoomHeight)
+         || fits_write_key_int("EXPOSURE", focusExposure, "Total Exposure Time")
+         || fits_write_key_string("CREATOR", "sxFocus", "Imaging Application")
+         || fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")
+         || fits_close())
+        {
+            fits_cleanup();
+            wxMessageBox("FAILed writing image!", "Save Error", wxOK | wxICON_INFORMATION);
+            return;
+        }
         snapped = true;
         wxBell();
     }
@@ -478,8 +522,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     /*
      * Convert 16 bit samples to 24 BPP image
      */
-    wxImage ccdImage(zoomWidth, zoomHeight);
-    unsigned char *rgb = ccdImage.GetData();
+    unsigned char *rgb = focusImage->GetData();
     uint16_t      *m16 = ccdFrame;
     pixelMin = MAX_PIX;
     pixelMax = MIN_PIX;
@@ -503,7 +546,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
     if (focusWinWidth > 0 && focusWinHeight > 0)
     {
         wxClientDC dc(this);
-        wxBitmap bitmap(ccdImage.Scale(focusWinWidth, focusWinHeight, wxIMAGE_QUALITY_BILINEAR));
+        wxBitmap bitmap(focusImage->Scale(focusWinWidth, focusWinHeight, wxIMAGE_QUALITY_BILINEAR));
         dc.DrawBitmap(bitmap, 0, 0);
         xBestCentroid  = zoomWidth  / 2;
         yBestCentroid  = zoomHeight / 2;
@@ -520,7 +563,7 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
                              &yRadius,
                              1.0))
         {
-            CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
+            if (zoomTracking) CenterCentroid(xBestCentroid, yBestCentroid, zoomWidth, zoomHeight);
             /*
              * Draw ellipse around best star depicting FWHM
              */
@@ -532,7 +575,6 @@ void FocusFrame::OnTimer(wxTimerEvent& WXUNUSED(event))
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
             dc.DrawEllipse((xBestCentroid + 0.5) * xScale - xRadius, (yBestCentroid + 0.5) * yScale - yRadius, xRadius * 2, yRadius * 2);
         }
-        Refresh();
     }
     char minmax[20];
     sprintf(minmax, "Min: %d", pixelMin);
@@ -559,6 +601,10 @@ void FocusFrame::OnResetLevels(wxCommandEvent& WXUNUSED(event))
 {
     InitLevels();
 }
+void FocusFrame::OnZoomTracking(wxCommandEvent& event)
+{
+    zoomTracking = event.IsChecked();
+}
 void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
 {
     char statusText[20];
@@ -578,10 +624,13 @@ void FocusFrame::OnZoomIn(wxCommandEvent& WXUNUSED(event))
             zoomHeight = ccdFrameHeight >> focusZoom;
             xOffset += zoomWidth / 2;
             yOffset += zoomHeight / 2;
-            CenterCentroid(xBestCentroid / 2, yBestCentroid / 2, zoomWidth, zoomHeight);
+            if (zoomTracking) CenterCentroid(xBestCentroid / 2, yBestCentroid / 2, zoomWidth, zoomHeight);
             sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
         }
         SetStatusText(statusText, 1);
+        if (focusImage)
+            delete focusImage;
+        focusImage = new wxImage(zoomWidth, zoomHeight);
     }
 }
 void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
@@ -604,10 +653,13 @@ void FocusFrame::OnZoomOut(wxCommandEvent& WXUNUSED(event))
             zoomHeight = ccdFrameHeight >> focusZoom;
             xOffset -= zoomWidth / 4;
             yOffset -= zoomHeight / 4;
-            CenterCentroid(xBestCentroid * 2, yBestCentroid * 2, zoomWidth, zoomHeight);
+            if (zoomTracking) CenterCentroid(xBestCentroid * 2, yBestCentroid * 2, zoomWidth, zoomHeight);
             sprintf(statusText, "Zoom: %dX", 1 << focusZoom);
         }
         SetStatusText(statusText, 1);
+        if (focusImage)
+            delete focusImage;
+        focusImage = new wxImage(zoomWidth, zoomHeight);
     }
 }
 void FocusFrame::OnContrastInc(wxCommandEvent& WXUNUSED(event))
@@ -655,6 +707,8 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
 {
     if (focusTimer.IsRunning())
         focusTimer.Stop();
+    if (focusImage)
+        delete focusImage;
 	if (camCount)
 	{
 		sxRelease(camHandles, camCount);
@@ -664,6 +718,7 @@ void FocusFrame::OnClose(wxCloseEvent& WXUNUSED(event))
     config.Write(wxT("RedFilter"),  pixelFilter);
     config.Write(wxT("AutoLevels"), autoLevels);
     config.Write(wxT("Gamma"),      pixelGamma);
+    config.Write(wxT("Tracking"),   zoomTracking);
     Destroy();
 }
 void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))
@@ -672,5 +727,5 @@ void FocusFrame::OnExit(wxCommandEvent& WXUNUSED(event))
 }
 void FocusFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    wxMessageBox("Starlight Xpress Focusser\nVersion 0.1 Alpha 3\nCopyright (c) 2003-2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Focusser\nVersion 0.1 Alpha 4\nCopyright (c) 2003-2020, David Schmenk", "About SX Focus", wxOK | wxICON_INFORMATION);
 }

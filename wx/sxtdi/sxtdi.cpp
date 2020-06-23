@@ -75,7 +75,7 @@ int FixedModels[] = {SXCCD_HX5,
  */
 int      camUSBType      = 0;
 double   initialRate     = 0.0;
-long     initialDuration = 0;
+long     initialDuration = 6;
 wxString initialFileName = wxT("Untitled.fits");
 long     initialBinX     = 1;
 long     initialBinY     = 1;
@@ -84,7 +84,7 @@ bool     autonomous      = false;
 /*
  * Bin choices
  */
-wxString BinChoices[] = {wxT("1x"), wxT("2x"), wxT("4x")};
+wxString BinChoices[] = {wxT("1X"), wxT("2X"), wxT("3X"), wxT("4X")};
 /*
  * Gamma choices
  */
@@ -117,7 +117,7 @@ class ScanFrame : public wxFrame
 {
 public:
     ScanFrame();
-    void AutoStart(wxString& fileName);
+    bool AutoStart(wxString& fileName);
 protected:
     friend class ScanThread;
     ScanThread    *tdiThread;
@@ -274,6 +274,7 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
         {
             case 1:
             case 2:
+            case 3:
             case 4:
                 break;
             default:
@@ -286,6 +287,7 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
         {
             case 1:
             case 2:
+            case 3:
             case 4:
                 break;
             default:
@@ -301,6 +303,7 @@ bool ScanApp::OnCmdLineParsed(wxCmdLineParser &parser)
 bool ScanApp::OnInit()
 {
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
+    config.Read(wxT("Duration"),   &initialDuration);
     config.Read(wxT("ScanRate"),   &initialRate);
     config.Read(wxT("BinX"),       &initialBinX);
     config.Read(wxT("BinY"),       &initialBinY);
@@ -309,18 +312,19 @@ bool ScanApp::OnInit()
 #endif
     if (wxApp::OnInit())
     {
+        bool startApp = true;
         ScanFrame *frame = new ScanFrame();
         if (autonomous && ccdModel)
         {
             /*
              * In autonomous mode, skip Show() to reduce processing overhead of image display
              */
-            frame->AutoStart(initialFileName);
+            startApp = frame->AutoStart(initialFileName);
             frame->Close(true);
         }
         else
             frame->Show(true);
-        return true;
+        return startApp;
     }
     return false;
 }
@@ -592,7 +596,7 @@ void ScanFrame::UpdateAlign()
                  */
                 tdiExposure = 0.0;
                 tdiScanRate = 0.0;
-                numFrames = 0;
+                numFrames   = 0;
             }
         }
         else
@@ -751,7 +755,7 @@ wxThread::ExitCode ScanFrame::StopTDI()
     }
     return scanErr;
 }
-void ScanFrame::AutoStart(wxString& fileName)
+bool ScanFrame::AutoStart(wxString& fileName)
 {
     wxMessageOutputStderr progress;
     StartTDI();
@@ -768,10 +772,21 @@ void ScanFrame::AutoStart(wxString& fileName)
      */
     wxThread::ExitCode scanErr = StopTDI();
     if (scanErr == SCAN_ERR_TIME)
-        progress.Printf("Miniumum Timing Error");
+    {
+        progress.Printf("Miniumum Timing Error!");
+        return false;
+    }
     if (scanErr == SCAN_ERR_CAMERA)
-        progress.Printf("Camera Error");
-    tdiFileSaved = FitsWrite(fileName);
+    {
+        progress.Printf("Camera Error!");
+        return false;
+    }
+    if (!(tdiFileSaved = FitsWrite(fileName)))
+    {
+        progress.Printf("Writing FITS File Error!");
+        return false;
+    }
+    return true;
 }
 void ScanFrame::UpdateTDI()
 {
@@ -815,7 +830,6 @@ void ScanFrame::UpdateTDI()
                 wxClientDC dc(this);
                 wxBitmap bitmap(scanImage->Scale(winWidth, winHeight, wxIMAGE_QUALITY_BILINEAR));
                 dc.DrawBitmap(bitmap, 0, 0);
-                Refresh();
             }
         }
     }
@@ -890,12 +904,12 @@ void ScanFrame::OnBinX(wxCommandEvent& WXUNUSED(event))
         wxSingleChoiceDialog dlg(this,
                               wxT("X Bin:"),
                               wxT("X Binning"),
-                              3,
+                              4,
                               BinChoices);
         if (dlg.ShowModal() == wxID_OK )
         {
             char binText[10];
-            ccdBinX =  1 << dlg.GetSelection();
+            ccdBinX =  dlg.GetSelection() + 1;
             sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
             SetStatusText(binText, 2);
         }
@@ -910,12 +924,12 @@ void ScanFrame::OnBinY(wxCommandEvent& WXUNUSED(event))
         wxSingleChoiceDialog dlg(this,
                               wxT("Y Bin:"),
                               wxT("Y Binning"),
-                              3,
+                              4,
                               BinChoices);
         if (dlg.ShowModal() == wxID_OK )
         {
             char binText[10];
-            ccdBinY =  1 << dlg.GetSelection();
+            ccdBinY =  dlg.GetSelection() + 1;
             sprintf(binText, "Bin: %d:%d", ccdBinX, ccdBinY);
             SetStatusText(binText, 2);
         }
@@ -1057,13 +1071,17 @@ bool ScanFrame::FitsWrite(wxString& fileName)
 {
     char fits_file[255];
     strcpy(fits_file, fileName.c_str());
-    if (fits_open(fits_file))                                                                            return fits_cleanup();
-    if (fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, tdiLength - ccdBinHeight))  return fits_cleanup();
-    if (fits_write_key_int("EXPOSURE", (tdiLength - ccdBinHeight) * tdiExposure, "Total Exposure Time")) return fits_cleanup();
-    if (fits_write_key_string("CREATOR", "sxTDI", "Imaging Application"))                                return fits_cleanup();
-    if (fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device"))                    return fits_cleanup();
-    if (fits_close())                                                                                    return fits_cleanup();
-    return true;
+    if (fits_open(fits_file)
+     || fits_write_image(&tdiFrame[ccdBinWidth * ccdBinHeight], ccdBinWidth, tdiLength - ccdBinHeight)
+     || fits_write_key_int("EXPOSURE", (tdiLength - ccdBinHeight) * tdiExposure, "Total Exposure Time")
+     || fits_write_key_string("CREATOR", "sxTDI", "Imaging Application")
+     || fits_write_key_string("CAMERA", "StarLight Xpress Camera", "Imaging Device")
+     || fits_close())
+    {
+        fits_cleanup();
+        return false; // Writing FITS file failed
+    }
+    return true; // All good
 }
 void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
 {
@@ -1074,9 +1092,10 @@ void ScanFrame::OnSave(wxCommandEvent& WXUNUSED(event))
         {
             if (dlg.ShowModal() == wxID_OK)
             {
-                tdiFilePath  = dlg.GetPath();
-                tdiFileName  = dlg.GetFilename();
-                tdiFileSaved = FitsWrite(tdiFilePath);
+                tdiFilePath = dlg.GetPath();
+                tdiFileName = dlg.GetFilename();
+                if (!(tdiFileSaved = FitsWrite(tdiFilePath)))
+                    wxMessageBox("FAILed writing image!", "Save Error", wxOK | wxICON_INFORMATION);
             }
         }
         else
@@ -1137,6 +1156,7 @@ void ScanFrame::OnClose(wxCloseEvent& event)
     wxConfig config(wxT("sxTDI"), wxT("sxToys"));
     config.Write(wxT("RedFilter"),  pixelFilter);
     config.Write(wxT("Gamma"),      pixelGamma);
+    config.Write(wxT("Duration"),   tdiMinutes/60);
     config.Write(wxT("ScanRate"),   tdiScanRate);
     config.Write(wxT("BinX"),       ccdBinX);
     config.Write(wxT("BinY"),       ccdBinY);
@@ -1164,5 +1184,5 @@ void ScanFrame::OnGamma(wxCommandEvent& WXUNUSED(event))
 }
 void ScanFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Alpha 3\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
+    wxMessageBox("Starlight Xpress Time Delay Integrator\nVersion 0.1 Alpha 4\nCopyright (c) 2003-2020, David Schmenk", "About SX TDI", wxOK | wxICON_INFORMATION);
 }

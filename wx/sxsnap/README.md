@@ -7,6 +7,8 @@
 
 Enter the number of snap shots to take and exposure duration. Then take them. Review the images by moving forward and backward with 'F' and 'B'. Delete what you don't want, save the rest.
 
+![sxSnapShot](https://github.com/dschmenk/sxToys/blob/master/images/sxsnap-snapping.png)
+
 ## Camera Options
 
 If you should start sxSnapShot before plugging in a camera, or you have multiple cameras connected and want to change which one is being focussed, the 'Camera/Connect Camera..' option will allow you to change which camera is currently attached to the focussing window.
