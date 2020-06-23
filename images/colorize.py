@@ -42,22 +42,21 @@ magenta_frame = fill_masked_frame(raw_frame * np.tile(magenta_mask, (int(580/4),
 #
 # Calculate YUV and RGB frames
 #
-y_frame = magenta_frame * 0.05 + cyan_frame * 0.5 + yellow_frame * 0.25 + green_frame * 0.3
-u_frame = magenta_frame + cyan_frame - green_frame - yellow_frame
-v_frame = magenta_frame + yellow_frame - green_frame - cyan_frame
+y_frame = magenta_frame * 0.05 + cyan_frame * 0.05 + yellow_frame * 0.25 + green_frame * 0.3
+u_frame = (magenta_frame + cyan_frame - green_frame - yellow_frame)# * 0.5
+v_frame = (magenta_frame + yellow_frame - green_frame - cyan_frame)# * 0.5
 r_frame = y_frame                    + 1.14  * v_frame
 g_frame = y_frame - 0.345  * u_frame - 0.581 * v_frame
 b_frame = y_frame + 0.2032 * u_frame
 #
 # Plot the result
 #
-fig = plt.figure()
-#plt.imshow(r_frame)
-#fig = plt.figure()
+#plt.figure()
+#plt.imshow(y_frame)
 #plt.imshow(g_frame)
-#fig = plt.figure()
 #plt.imshow(b_frame)
-ax = RGBAxes(fig, [0.1, 0.1, 0.8, 0.8])
+fig = plt.figure()
+ax = RGBAxes(fig, [0.0, 0.0, 1.0, 1.0])
 kwargs = dict(origin="lower", interpolation="nearest")
 ax.imshow_rgb(r_frame, g_frame, b_frame, **kwargs)
 #ax.RGB.set_xlim(0., 500)
