@@ -274,10 +274,10 @@ FocusFrame::FocusFrame() : wxFrame(NULL, wxID_ANY, "SX Focus"), focusTimer(this,
     menuView->Append(ID_LEVEL_RESET,         wxT("Reset Levels\tL"));
     menuView->AppendCheckItem(ID_ZOOM_TRACK, wxT("Zoom Tracking\tT"));
     menuView->Check(ID_ZOOM_TRACK,           zoomTracking);
-    menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tX"));
-    menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tZ"));
-    menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tE"));
-    menuView->Append(ID_EXPOSE_DEC,          wxT("Exposure Dec\tW"));
+    menuView->Append(ID_ZOOM_IN,             wxT("Zoom In\tCTRL-RIGHT"));
+    menuView->Append(ID_ZOOM_OUT,            wxT("Zoom Out\tCTRL-LEFT"));
+    menuView->Append(ID_EXPOSE_INC,          wxT("Exposure Inc\tCTRL-UP"));
+    menuView->Append(ID_EXPOSE_DEC,          wxT("Exposure Dec\tCTRL-DOWN"));
     menuView->Append(ID_CONT_INC,            wxT("Contrast Inc\tPGUP"));
     menuView->Append(ID_CONT_DEC,            wxT("Contrast Dec\tPGDN"));
     menuView->Append(ID_BRITE_INC,           wxT("Brightness Inc\tHOME"));

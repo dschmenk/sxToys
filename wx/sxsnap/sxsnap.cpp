@@ -311,8 +311,8 @@ SnapFrame::SnapFrame() : wxFrame(NULL, wxID_ANY, "SX SnapShot")
     menuView->AppendCheckItem(ID_LEVEL_AUTO, wxT("Auto Levels\tA"));
     menuView->Check(ID_LEVEL_AUTO,           autoLevels);
     menuView->Append(ID_GAMMA,               wxT("&Gamma..."));
-    menuView->Append(ID_FORWARD,             wxT("&Next Image\tF"));
-    menuView->Append(ID_BACKWARD,            wxT("&Previous Image\tB"));
+    menuView->Append(ID_FORWARD,             wxT("&Next Image\tCTRL-RIGHT"));
+    menuView->Append(ID_BACKWARD,            wxT("&Previous Image\tCTRL-LEFT"));
     wxMenu *menuImage = new wxMenu;
     menuImage->Append(ID_START,    wxT("Snap...\tSPACE"));
     menuCamera->AppendSeparator();
