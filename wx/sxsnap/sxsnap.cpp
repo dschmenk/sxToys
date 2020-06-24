@@ -475,6 +475,7 @@ void SnapFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
     {
         camUSBType = FixedModels[dlg.GetSelection()];
         sxSetCameraModel(camHandles[camSelect], camUSBType);
+        sxGetCameraParams(camHandles[camSelect], camSelect, &camParams[camSelect]);
         ConnectCamera(camSelect);
         wxConfig config(wxT("sxSnapShot"), wxT("sxToys"));
         config.Write(wxT("USB1Camera"), camUSBType);
@@ -740,7 +741,7 @@ bool SnapFrame::AutoStart(wxString& baseName)
             progress.Printf("\nCamera Error!");
             return false;
         }
-        sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
+        //sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
         calibratedDownload = watch.Time();
         calibratedCamera   = ccdModel;
     }
@@ -806,7 +807,7 @@ bool SnapFrame::AutoStart(wxString& baseName)
              */
             sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD, SXCCD_IMAGE_HEAD);
             watch.Start();
-            while ((timeDelta = snapExposure - watch.Time()) > 1500)
+            while ((timeDelta = snapExposure - watch.Time()) > 1000)
             {
                 /*
                  * Clear registers every second.
@@ -908,7 +909,7 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                 wxMessageBox("Camera Error", "SX SnapShot", wxOK | wxICON_INFORMATION);
                 return;
             }
-            sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
+            //sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD|SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
             calibratedDownload = watch.Time();
             calibratedCamera   = ccdModel;
             free(dummyFrame);
@@ -1009,15 +1010,15 @@ void SnapFrame::OnStart(wxCommandEvent& WXUNUSED(event))
                  */
                  if (!dlg.Update(timeElapsed, progress))
                      goto cancelled;
-                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_ODD, SXCCD_IMAGE_HEAD);
+                sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_FIELD_BOTH, SXCCD_IMAGE_HEAD);
                 watch.Start();
-                while ((timeDelta = snapExposure - watch.Time()) > 1500)
+                while ((timeDelta = snapExposure - watch.Time()) > 1000)
                 {
                     /*
                      * Clear registers every second.
                      */
                     wxMilliSleep(1000);
-                    sxClearImage(camHandles[camSelect], 0, SXCCD_IMAGE_HEAD);
+                    sxClearImage(camHandles[camSelect], SXCCD_EXP_FLAGS_NOWIPE_FRAME, SXCCD_IMAGE_HEAD);
                     /*
                      * Allow dialog feedback.
                      */

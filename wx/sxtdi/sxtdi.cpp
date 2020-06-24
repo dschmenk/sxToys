@@ -509,6 +509,7 @@ void ScanFrame::OnOverride(wxCommandEvent& WXUNUSED(event))
 		{
 			camUSBType = FixedModels[dlg.GetSelection()];
 			sxSetCameraModel(camHandles[camSelect], camUSBType);
+            sxGetCameraParams(camHandles[camSelect], camSelect, &camParams[camSelect]);
 			ConnectCamera(camSelect);
             wxConfig config(wxT("sxTDI"), wxT("sxToys"));
             config.Write(wxT("USB1Camera"), camUSBType);

@@ -30,21 +30,29 @@ void calcRamp(int black, int white, float gamma, int filter)
  */
 void calcCentroid(int width, int height, unsigned short *pixels, int x, int y, int x_radius, int y_radius, float *x_centroid, float *y_centroid, int min)
 {
+    int   x_min, x_max, y_min, y_max;
     int   i, j;
     float sum;
 
     *x_centroid = 0.0;
     *y_centroid = 0.0;
     sum         = 0.0;
-
-    for (j = y - y_radius; j <= y + y_radius; j++)
-        for (i = x - x_radius; i <= x + x_radius; i++)
-            if (pixels[j * width + i] > min)
-            {
-                *x_centroid += i * pixels[j * width + i];
-                *y_centroid += j * pixels[j * width + i];
-                sum         +=     pixels[j * width + i];
-            }
+    x_min       = x - x_radius;
+    x_max       = x + x_radius;
+    y_min       = y - y_radius;
+    y_max       = y + y_radius;
+    if (x_min < 0)       x_min = 0;
+    if (x_max >= width)  x_max = width - 1;
+    if (y_min < 0)       y_min = 0;
+    if (y_max >= height) y_max = height - 1;
+    for (j = y_min; j <= y_max; j++)
+        for (i = x_min; i <= x_max; i++)
+                if (pixels[j * width + i] > min)
+                {
+                    *x_centroid += i * pixels[j * width + i];
+                    *y_centroid += j * pixels[j * width + i];
+                    sum         +=     pixels[j * width + i];
+                }
     if (sum != 0.0)
     {
         *x_centroid /= sum;
@@ -109,9 +117,13 @@ int findBestCentroid(int width, int height, unsigned short *pixels, float *x_cen
                          * Find radius of highlight
                          */
                         for (y_radius = 1; (y_radius <= *y_max_radius)
+                                        && (j + y_radius <  y_max)
+                                        && (j - y_radius >= y_min)
                                         && ((pixels[(j + y_radius) * width + i] > pixel_min)
                                          || (pixels[(j - y_radius) * width + i] > pixel_min)); y_radius++);
                         for (x_radius = 1; (x_radius <= *x_max_radius)
+                                        && (i + x_radius <  x_max)
+                                        && (i + x_radius >= x_min)
                                         && ((pixels[j * width + i + x_radius] > pixel_min)
                                          || (pixels[j * width + i - x_radius] > pixel_min)); x_radius++);
                         /*
