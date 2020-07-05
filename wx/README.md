@@ -42,6 +42,8 @@ Create links to sxFocus and sxTDI in Start menu
 
 ## Building for MacOS/OSX:
 
+From homebrew install: libusb libpng libjpeg libtiff
+    
 Download wxWidgets here.
 
 Create symlink for `wxWidgets` to current version:
